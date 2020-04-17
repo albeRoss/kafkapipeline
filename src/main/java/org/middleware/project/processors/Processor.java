@@ -1,6 +1,6 @@
 package org.middleware.project.processors;
 
-public interface Processor {
+public interface Processor extends Runnable {
 
     void init();
 
