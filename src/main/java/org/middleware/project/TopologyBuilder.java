@@ -9,9 +9,11 @@ import java.util.concurrent.TimeUnit;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.middleware.project.Processors.FilterProcessor;
 import org.middleware.project.Processors.StageProcessor;
+import org.middleware.project.Processors.WindowedAggregateProcessor;
 import org.middleware.project.topology.AtomicStage;
 import org.middleware.project.topology.Sink;
 import org.middleware.project.topology.Source;
+import org.middleware.project.topology.StatefulAtomicStage;
 import org.middleware.project.utils.Bash_runner;
 
 public class TopologyBuilder {
@@ -49,23 +51,13 @@ public class TopologyBuilder {
 
         int outTopic_pos = pos + 1;
         String group = "group_" + pos;
-        //System.out.println("[STAGE : " + pos + " ]");
         Properties props = new Properties();
         Properties global_prop = this.loadEnvProperties("config.properties");
-
         String stage_processors_str = global_prop.getProperty("processors.at." + (pos));
         int stage_processors = Integer.parseInt(stage_processors_str);
         String function_type = global_prop.getProperty("stage.at." + pos);
 
         props.put("inTopic", "topic_" + pos);
-        /*NewTopic topic = new NewTopic("topic_" + outTopic_pos, stage_processors, replication_factor);
-        Properties adminConf = this.loadEnvProperties("adminClient.properties");
-        AdminClient adminClient = KafkaAdminClient.create(adminConf);
-        adminClient.createTopics(Collections.singleton(topic));
-        adminClient.close(Duration.ofSeconds(4));
-        System.out.println("New topic created: " + "topic_" + outTopic_pos);
-        System.out.println("    partitions: " + stage_processors);
-        System.out.println("    replication_factor: " + replication_factor);*/
         props.put("outTopic", "topic_" + outTopic_pos);
         props.put("bootstrap.servers", global_prop.getProperty("bootstrap.servers"));
         props.put("group.id", group);
@@ -73,21 +65,15 @@ public class TopologyBuilder {
         props.put("value.deserializer", StringDeserializer.class.getName());
         props.put("stage_processors", stage_processors_str);
         props.put("stage_function", function_type);
-        // System.out.println("(topic_" + pos+") --> [STAGE@"+pos+"] --> "+"(topic_" + outTopic_pos+")");
-        // create processors
-        /*final ExecutorService executor_stage = Executors.newFixedThreadPool(stage_processors+1);
-        executor_stage.submit(new Source(propSource));
-        executor_stage.shutdown();
-        while (!executor_stage.awaitTermination(10, TimeUnit.SECONDS)) {
-        }*/
+
         System.out.println("Stage [" + pos + "] created with " + stage_processors + " processors");
+
         return props;
-
-
     }
 
 
     private Properties build_source() {
+
         Properties props = new Properties();
         Properties global_prop = this.loadEnvProperties("config.properties");
         props.put("outTopic", "topic_" + 1);
@@ -98,7 +84,6 @@ public class TopologyBuilder {
         System.out.println("Source built");
 
         return props;
-
 
     }
 
@@ -179,7 +164,7 @@ public class TopologyBuilder {
                             "--bootstrap-server localhost:9092 " +
                             "--replication-factor " + replication_factor + " " +
                             "--partitions " + partitions_array.get(i).toString() + " " +
-                            "--topic topic_" + (i+1) + " &\n");
+                            "--topic topic_" + (i + 1) + " &\n");
         }
 
         System.out.println("topology deployment sh generated");
@@ -218,8 +203,8 @@ public class TopologyBuilder {
             if (cluster_size > final_cluster_size) final_cluster_size = cluster_size;
 
         }
-        System.out.println("total number of thread needed is: "+num_thread_pipeline);
-        System.out.println("bottleneck of pipeline: "+final_cluster_size);
+        System.out.println("total number of thread needed is: " + num_thread_pipeline);
+        System.out.println("bottleneck of pipeline: " + final_cluster_size);
 
         //generate props to be read by start_cluster.sh
         // here the number of broker is determined by the biggest consumer group in the pipeline
@@ -231,24 +216,11 @@ public class TopologyBuilder {
         // launch script deploy cluster and create topics
         topologyBuilder.start_kafka_cluster();
 
-
         //build source
         Properties propSource = topologyBuilder.build_source();
 
         //build sink
         Properties propSink = topologyBuilder.build_sink(pipeline_length);
-
-
-        /*//launch source
-        final ExecutorService executor = Executors.newFixedThreadPool(1);
-        try {
-            executor.submit(new Source(propSource));
-            executor.shutdown();
-            while (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
-            }
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }*/
 
 
         //build stages
@@ -262,14 +234,6 @@ public class TopologyBuilder {
             }
         }
 
-        /*//FIXME filter stage:
-        StageProcessor stage = new FilterProcessor((String k, String v) -> {
-            if (k.hashCode() % 2 == 1) {
-                return true;
-            } else {
-                return false;
-            }
-        });*/
         PipelineFunctions pipelineFunctions = PipelineFunctions.pipeline;
         List<StageProcessor> stages = pipelineFunctions.getProcessors();
 
@@ -280,14 +244,24 @@ public class TopologyBuilder {
             for (int j = 0; j < lst_stage_props.size(); j++) {
                 int processors = Integer.parseInt(lst_stage_props.get(j).getProperty("stage_processors"));
 
-                for (int i = 0; i < processors; i++) {
+                if (stages.get(j).getClass().getSimpleName().matches("WindowedAggregateProcessor")) {
+                    for (int i = 0; i < processors; i++) {
 
-                    executor_stage.submit(new AtomicStage(lst_stage_props.get(j), i,stages.get(j))); // fixme we need to look at each fun
+                        executor_stage.submit(new StatefulAtomicStage(lst_stage_props.get(j), i, stages.get(j))); // fixme we need to look at each fun
+
+                    }
+                } else {
+                    for (int i = 0; i < processors; i++) {
+
+                        executor_stage.submit(new AtomicStage(lst_stage_props.get(j), i, stages.get(j))); // fixme we need to look at each fun
+
+                    }
+
                 }
 
             }
             executor_stage.submit(new Source(propSource));
-            executor_stage.submit(new Sink())
+            executor_stage.submit(new Sink(propSink));
             executor_stage.shutdown();
             while (!executor_stage.awaitTermination(10, TimeUnit.SECONDS)) {
             }
@@ -295,25 +269,6 @@ public class TopologyBuilder {
 
         } catch (InterruptedException e) {
             e.printStackTrace();
-            //executor_stage.submit(new Source(propSource));
-            /*try {
-                final ExecutorService executor_source = Executors.newFixedThreadPool(1);
-                executor_source.submit(new Source(propSource));
-                executor_source.shutdown();
-                while (!executor_stage.awaitTermination(10, TimeUnit.SECONDS)) {
-                }
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }*/
-
-
-
-        /*final String[] pipeline_functions = new String[pipeline_length];
-        final int[] stage_processors = new
-        for (int i = 0; i < pipeline_length; i++) {
-            pipeline_functions[i] = prop.getProperty("stage.at."+ i);
-        }*/
-
 
         }
 

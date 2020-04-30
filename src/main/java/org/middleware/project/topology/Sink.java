@@ -11,6 +11,7 @@ import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.errors.AuthorizationException;
 import org.apache.kafka.common.errors.OutOfOrderSequenceException;
 import org.apache.kafka.common.errors.ProducerFencedException;
+import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 
 public class Sink implements Runnable {
@@ -38,8 +39,9 @@ public class Sink implements Runnable {
         final Properties props = new Properties();
 
         props.put("bootstrap.servers", boostrapServers);
-        props.put("key.serializer", StringSerializer.class.getName());
-        props.put("value.serializer", StringSerializer.class.getName());
+        props.put("key.deserializer", StringDeserializer.class.getName());
+        props.put("value.deserializer", StringDeserializer.class.getName());
+        props.put("isolation.level", "read_committed");
 
         this.consumer = new KafkaConsumer<String, String>(props);
 

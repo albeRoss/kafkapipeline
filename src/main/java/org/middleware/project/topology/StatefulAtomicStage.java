@@ -1,13 +1,5 @@
 package org.middleware.project.topology;
 
-import java.time.Duration;
-import java.time.temporal.ChronoUnit;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -19,52 +11,72 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.AuthorizationException;
 import org.apache.kafka.common.errors.OutOfOrderSequenceException;
 import org.apache.kafka.common.errors.ProducerFencedException;
-import org.apache.kafka.common.protocol.types.Field;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.mapdb.DB;
 import org.mapdb.DBMaker;
+import org.mapdb.HTreeMap;
 import org.mapdb.Serializer;
-import org.middleware.project.Processors.*;
-import org.middleware.project.functions.FlatMap;
+import org.middleware.project.Processors.FlatMapProcessor;
+import org.middleware.project.Processors.StageProcessor;
+import org.middleware.project.Processors.WindowedAggregateProcessor;
 import org.middleware.project.functions.WindowedAggregate;
 
-public class AtomicStage implements Processor {
+import java.time.Duration;
+import java.time.temporal.ChronoUnit;
+import java.util.*;
+import java.util.concurrent.ConcurrentMap;
 
-    //private static final int numRepetitions = 200;
+public class StatefulAtomicStage extends AtomicStage {
 
-    protected final String group;
-    protected final String inTopic;
-    protected final String outTopic;
-    protected String boostrapServers;
-    protected final String transactionId;
-    protected final String stage_function;
-    protected final StageProcessor stageProcessor;
-    protected volatile boolean running;
+    private TopicPartition partition;
+    private WindowedAggregateProcessor winStageProcessor;
+    private long processedOffset;
 
-    protected KafkaProducer<String, String> producer;
-    protected KafkaConsumer<String, String> consumer;
-    protected final int id;
+    public StatefulAtomicStage(Properties properties, int id, StageProcessor stageProcessor) {
+        super(properties, id, stageProcessor);
+        winStageProcessor = (WindowedAggregateProcessor) stageProcessor;
 
-    public AtomicStage(Properties properties, int id, StageProcessor stageProcessor) {
-        this.group = properties.getProperty("group.id");
-        this.inTopic = properties.getProperty("inTopic");
-        this.outTopic = properties.getProperty("outTopic");
-        this.boostrapServers = properties.getProperty("bootstrap.servers");
-        this.stageProcessor = stageProcessor;
-        this.transactionId = "atomic_forwarder_" + properties.getProperty("group.id") + "_transactional_id_" + id;
-        this.stage_function = stageProcessor.getClass().getSimpleName();
-        this.id = id;
-        running = true;
-        System.out.println("[ ATOMICSTAGE : "+this.stage_function+" ]" +"\t group = " + group +"\t inTopic = " + inTopic
-                +"\t outTopic = " + outTopic+"\t boostrapServers = " + boostrapServers);
-        //System.out.println("\t transactionId = " + transactionId);
 
-        init();
+    }
+
+    protected DB openDBSession() {
+        return DBMaker
+                .fileDB(this.group + id + ".db")
+                .transactionEnable()
+                .make();
+    }
+
+    protected Long getOffset(DB db) {
+        HTreeMap<Integer, Long> processedOffsetsMap = db.hashMap("processedOffsetsMap", Serializer.INTEGER, Serializer.LONG).createOrOpen();
+        return processedOffsetsMap.get(this.id);
+    }
+
+    protected HTreeMap<Integer, Long>  getOffsetsMap(DB db) {
+        return db.hashMap("processedOffsetsMap", Serializer.INTEGER, Serializer.LONG).createOrOpen();
+    }
+
+
+    protected HTreeMap<String, List<String>> getWindows(DB db) {
+        return db.hashMap("windows", Serializer.STRING, Serializer.JAVA).createOrOpen();
     }
 
     @Override
     public void init() {
+
+        /* Stage Local State retrieval*/
+
+        DB db = this.openDBSession();
+        ConcurrentMap<String, List<String>> windows = getWindows(db);
+
+        //in case first start: initialize windows as empty
+        //in case restart: retrieve topic partition current window
+        winStageProcessor.setWindows(windows);
+
+        // HTreeMap<Integer, Long> processedOffsetsMap = db.hashMap("processedOffsetsMap", Serializer.INTEGER, Serializer.LONG).createOrOpen();
+        // processedOffsetsMap.;
+        // db.commit();
+        // db.close();
 
         final Properties consumerProps = new Properties();
         consumerProps.put("bootstrap.servers", boostrapServers);
@@ -74,10 +86,10 @@ public class AtomicStage implements Processor {
         consumerProps.put("isolation.level", "read_committed");
         consumerProps.put("enable.auto.commit", "false");
 
-
         this.consumer = new KafkaConsumer<>(consumerProps);
-        this.consumer.subscribe(Collections.singleton(inTopic));
-        //System.out.println("subscribed to : " + inTopic);
+
+        TopicPartition partition = new TopicPartition(inTopic, id);
+        this.consumer.assign(Collections.singleton(partition));
 
         final Properties producerProps = new Properties();
         producerProps.put("bootstrap.servers", boostrapServers);
@@ -88,49 +100,40 @@ public class AtomicStage implements Processor {
         producerProps.put("enable.idempotence", true);
 
         this.producer = new KafkaProducer<>(producerProps);
+
     }
 
     @Override
     public void process(final ConsumerRecord<String, String> record) {
 
-        if (stageProcessor instanceof FlatMapProcessor){
-            //System.out.println("I'm a flatmap");
-            HashMap<String,List<String>> processed = stageProcessor.process(record);
+        HashMap<String, String> processed = winStageProcessor.process(record);
 
-            processed.forEach((key,values) -> {
-
-                for (Object item: values) {
-                    String value = ((String) item);
-                    this.producer.send(new ProducerRecord<>(outTopic, key, value));
-                }
-
-            });
-
-        }else{
-            HashMap<String, String> processed = stageProcessor.process(record);
-
-            if (!processed.isEmpty()) {
-                for (String key: processed.keySet()){
-                    String value = processed.get(key);
-                    this.producer.send(new ProducerRecord<>(outTopic,key,value));
-                }
+        if (!processed.isEmpty()) {
+            for (String key : processed.keySet()) {
+                String value = processed.get(key);
+                this.producer.send(new ProducerRecord<>(outTopic, key, value));
             }
         }
+
     }
 
     @Override
     public void run() {
+        DB db = openDBSession();
         try {
             this.producer.initTransactions();
 
+            while (running) {
 
-            while(running) {
+                long lastConsumedOffset = getOffset(db);
+                consumer.seek(this.partition, lastConsumedOffset);
+
                 ConsumerRecords<String, String> records = this.consumer.poll(Duration.of(10, ChronoUnit.SECONDS));
                 this.producer.beginTransaction();
 
                 for (final ConsumerRecord<String, String> record : records) {
-                    System.out.println("[GROUP : "+group+" ] " + "["+inTopic+"] " +
-                            "[FORWARDER : "+id+" ] : "+
+                    System.out.println("[GROUP : " + group + " ] " + "[" + inTopic + "] " +
+                            "[FORWARDER : " + id + " ] : " +
                             "Partition: " + record.partition() + "\t" + //
                             "Offset: " + record.offset() + "\t" + //
                             "Key: " + record.key() + "\t" + //
@@ -138,10 +141,15 @@ public class AtomicStage implements Processor {
 
                     process(record);
 
-
-                    // this.producer.send(new ProducerRecord<>(outTopic, record.key(), record.value())); //replaced
+                    // save last offset processed
+                    processedOffset = record.offset();
+                    HTreeMap <Integer, Long> processedOffsetMap = getOffsetsMap(db);
+                    processedOffsetMap.put(id,processedOffset);
 
                 }
+                db.commit();
+                db.close();
+
                 // The producer manually commits the outputs for the consumer within the
                 // transaction
                 final Map<TopicPartition, OffsetAndMetadata> map = new HashMap<>();
@@ -176,6 +184,7 @@ public class AtomicStage implements Processor {
             consumer.close();
             producer.close();
             running = false;
+            db.close();
 
         }
 
@@ -185,7 +194,5 @@ public class AtomicStage implements Processor {
     public void shutdown() {
         running = false;
     }
-
-
 }
 

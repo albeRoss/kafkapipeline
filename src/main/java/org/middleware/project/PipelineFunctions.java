@@ -1,5 +1,9 @@
 package org.middleware.project;
 
+import org.mapdb.DB;
+import org.mapdb.DBMaker;
+import org.mapdb.HTreeMap;
+import org.mapdb.Serializer;
 import org.middleware.project.Processors.*;
 
 import java.util.*;
@@ -16,6 +20,7 @@ public class PipelineFunctions {
     }
 
 
+
     public static final PipelineFunctions pipeline = new PipelineFunctions(Arrays.asList(
 
             new FilterProcessor((String k, String v) -> k.hashCode() % 2 == 1)
@@ -26,10 +31,10 @@ public class PipelineFunctions {
                 return result;
             })*/, new FlatMapProcessor((String key, String value) -> {
                 HashMap<String, List<String>> result = new HashMap<>();
-                result.put(value.toUpperCase(), Arrays.asList("111","222"));
+                result.put(key, Arrays.asList("111","222"));
                 return result;
             })
-            , new WindowedAggregateProcessor(new HashMap<String,List<String>>(), (String key, List<String> values) ->{
+            , new WindowedAggregateProcessor((String key, List<String> values) ->{//FIXME use mapdb
                 String res = "";
                 for(String v: values) {
                     res = res.concat(v);
@@ -37,7 +42,7 @@ public class PipelineFunctions {
                 HashMap <String, String> res_aggr = new HashMap<>();
                 res_aggr.put(key,res);
                 return res_aggr;
-            },5,1),
+            },5,1,3),
 
             new FilterProcessor((String k, String v) -> k.hashCode() % 2 == 1){
 
