@@ -55,7 +55,8 @@ public class Source implements Runnable {
 
 
         final List<String> topics = Collections.singletonList(outTopic);
-        final int numMessages = 5;
+        final int numMessages = 10;
+        List<String> alpha = new ArrayList<>(Arrays.asList("A","B","C","D","E","F","G","H","I","L","M","N","O","P","Q","R","S","T","U","V","Z"));
         final Random r = new Random();
         // This must be called before any method that involves transactions
         producer.initTransactions();
@@ -64,8 +65,8 @@ public class Source implements Runnable {
             for (int i = 0; i < numMessages; i++) {
                 final String topic = topics.get(r.nextInt(topics.size()));
                 producer.beginTransaction();
-                final String key = "Key" + r.nextInt(5);
-                final String value = String.valueOf(r.nextInt(100));
+                final String key = "Key" +0;// r.nextInt(0);
+                final String value = alpha.get(i);
 
                 System.out.println("[SOURCE] Topic : " + topic + "\t" + //
                         "Key: " + key + "\t" + //

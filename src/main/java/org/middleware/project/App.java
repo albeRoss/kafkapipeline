@@ -11,7 +11,7 @@ import org.middleware.project.functions.WindowedAggregate;
 
 import java.io.*;
 import java.util.*;
-import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.*;
 
 /**
  * Hello world!
@@ -85,29 +85,11 @@ public class App
     protected HTreeMap<String, List<String>> getWindows(DB db){
         return db.hashMap("windows", Serializer.STRING, Serializer.JAVA).createOrOpen();
     }
-    public static void main(String[] args) throws IOException {
-        // Collection based streams shouldn't be closed
-        /*Stream.of("Red", "Blue", "Green", "Yellow", "Purple", "Back", "Fiorentina", "Juventus", "Lecce", "Emiliano")
-                .map(String::toUpperCase).flatMap(x-> Arrays.stream(x.split(""))).distinct()
-                //.filter(c -> c.length() > 4)
-                .forEach(System.out::print);
 
-        String[] colors = {"Red", "Blue", "Green"};*/
-        // Arrays.stream(colors).map(String::toUpperCase).forEach(System.out::println);
 
-        // IO-Based Streams Should be Closed via Try with Resources
-        /*try (Stream<String> lines = Files.lines(Paths.get("/path/tp/file"))) {
-            // lines will be closed after exiting the try block
-        }
-        StageProcessor stage = new WindowedAggregateProcessor(PipelineFunctions.hTreeMap, (String key, List<String> values) ->{
-            String res = "";
-            for(String v: values) {
-                res.concat(v);
-            }
-            HashMap <String, String> res_aggr = new HashMap<>();
-            res_aggr.put(key,res);
-            return res_aggr;
-        },5,1);*/
+    public static void main(String[] args) throws IOException, InterruptedException {
+
+
 /*
         Map<String, List<String>> continentTopContries =
                 new HashMap<String, List<String>>();
@@ -184,7 +166,89 @@ public class App
         System.out.println(map1.getEntries());
         db1.close();*/
 
-        DB db2 = app.openDBSession();
+
+        // first case
+
+
+        /*final int state = 4;
+        Runnable runnableTask = () -> {
+            try {
+                while(true){
+                    System.out.println("alive");
+                    Thread.sleep(1000);
+                }
+
+            } catch (InterruptedException e) {
+                System.out.println("crash: restart");
+                e.printStackTrace();
+                ExecutorService executor = Executors.newFixedThreadPool(1);
+                Future obj = executor.submit(new Runnable() {
+                    @Override
+                    public void run() {
+                            try {
+                        while(true){
+                            System.out.println("alive again");
+                                Thread.sleep(1000);
+                            System.out.println("state was: "+ state);
+                        }
+                            } catch (InterruptedException ex) {
+                                ex.printStackTrace();
+                            }
+                    }
+                });
+            }
+        };
+        ExecutorService executor = Executors.newFixedThreadPool(1);
+        Future obj = executor.submit(runnableTask);
+        Thread.sleep(5000);
+
+        obj.cancel(true);*/
+
+        //second case
+
+        int id = 1;
+        String group = "group1";
+        final int state = 4;
+        Runnable runnableTask = () -> {
+            int countDown = 4;
+
+                while(true){
+                    System.out.println("alive");
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    if(countDown > 0) countDown--;
+                    else {
+                        DB db = DBMaker.fileDB("file.db").make();
+                        ConcurrentMap map = db.hashMap("map").createOrOpen();
+                        //we need the id of the processor and the position of the
+                        map.put(1, 2);
+                        db.close();
+                        throw new RuntimeException("crash!");
+                    }
+                }
+        };
+        ExecutorService executor = Executors.newFixedThreadPool(1);
+        Future obj = executor.submit(runnableTask);
+
+        try {
+            obj.get();
+
+        } catch (ExecutionException | RuntimeException e) {
+            System.out.println("restart here");
+            e.printStackTrace();
+        }
+
+        executor.shutdown();
+        while (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
+        }
+
+        System.out.println("here we end");
+
+
+       /* DB db2 = app.openDBSession();
 
         ConcurrentMap<String, List<String>> windows = app.getWindows(db2);
         //windows.putIfAbsent("id", Arrays.asList("1", "2", "3"));
@@ -195,7 +259,7 @@ public class App
         //db2.commit();
         db2.close();
         //System.out.println(windows);
-        System.out.println(map.values());
+        System.out.println(map.values());*/
 
 
 

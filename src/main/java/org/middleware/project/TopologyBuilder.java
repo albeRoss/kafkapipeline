@@ -2,14 +2,14 @@ package org.middleware.project;
 
 import java.io.*;
 import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 
+import javafx.util.Pair;
 import org.apache.kafka.common.serialization.StringDeserializer;
-import org.middleware.project.Processors.FilterProcessor;
+import org.mapdb.DB;
+import org.mapdb.DBMaker;
+import org.mapdb.Serializer;
 import org.middleware.project.Processors.StageProcessor;
-import org.middleware.project.Processors.WindowedAggregateProcessor;
 import org.middleware.project.topology.AtomicStage;
 import org.middleware.project.topology.Sink;
 import org.middleware.project.topology.Source;
@@ -18,11 +18,8 @@ import org.middleware.project.utils.Bash_runner;
 
 public class TopologyBuilder {
 
-    private String inTopic;
-    private String outTopic;
-    private int pipelineLength;
-    private String boostrapServer;
-    private final static short replication_factor = 2;
+    private static short replication_factor;
+    private static Future<?> future_obj;
 
     private Properties loadEnvProperties(String fileName) {
         Properties prop = new Properties();
@@ -43,7 +40,6 @@ public class TopologyBuilder {
     }
 
     private static final void err() {
-        System.out.println("Usage: Topology builder <numConsumers>");
         System.exit(1);
     }
 
@@ -55,7 +51,7 @@ public class TopologyBuilder {
         Properties global_prop = this.loadEnvProperties("config.properties");
         String stage_processors_str = global_prop.getProperty("processors.at." + (pos));
         int stage_processors = Integer.parseInt(stage_processors_str);
-        String function_type = global_prop.getProperty("stage.at." + pos);
+        // String function_type = global_prop.getProperty("stage.at." + pos);
 
         props.put("inTopic", "topic_" + pos);
         props.put("outTopic", "topic_" + outTopic_pos);
@@ -64,7 +60,7 @@ public class TopologyBuilder {
         props.put("key.deserializer", StringDeserializer.class.getName());
         props.put("value.deserializer", StringDeserializer.class.getName());
         props.put("stage_processors", stage_processors_str);
-        props.put("stage_function", function_type);
+        // props.put("stage_function", function_type);
 
         System.out.println("Stage [" + pos + "] created with " + stage_processors + " processors");
 
@@ -98,7 +94,7 @@ public class TopologyBuilder {
                 //Properties prop = new Properties();
                 // set the properties value
                 Properties prop_default = this.loadEnvProperties("server.properties");
-                prop_default.setProperty("listeners", "PLAINTEXT://:909" + (i * 2));
+                prop_default.setProperty("listeners", "PLAINTEXT://:909" + (2 + (i * 2)));
                 //prop_default.setProperty("advertised.listeners", "PLAINTEXT://909" + (i*2));
                 prop_default.setProperty("log.dirs", "/tmp/kafka-logs" + i);
                 // save properties to project kafka /config folder
@@ -189,7 +185,10 @@ public class TopologyBuilder {
         System.out.println("Reading configuration file..");
         TopologyBuilder topologyBuilder = new TopologyBuilder();
         Properties prop = topologyBuilder.loadEnvProperties("config.properties");
-        final int pipeline_length = new Integer(prop.getProperty("pipeline.length"));
+        int pipeline_length = new Integer(prop.getProperty("pipeline.length"));
+        replication_factor = new Short(prop.getProperty("replication.factor"));
+        System.out.println("pipeline length: " + pipeline_length);
+
 
         // get max cluster size needed and the total number of thread for each forwarder
         int final_cluster_size = 1;
@@ -198,10 +197,19 @@ public class TopologyBuilder {
         for (int i = 1; i < pipeline_length + 1; i++) {
 
             int cluster_size = new Integer(prop.getProperty("processors.at." + i));
+
             num_thread_pipeline += cluster_size;
             topic_partitions.add(cluster_size);
             if (cluster_size > final_cluster_size) final_cluster_size = cluster_size;
 
+        }
+
+        //check replication factor to be consistent with cluster size
+        if (replication_factor > final_cluster_size) {
+            System.out.println("Stop at configuration. Final cluster size calculated is less than replication factor.");
+            System.out.println("Either increase number of processors per stage or decrease replication factor.");
+            System.out.println("be aware that decreasing replication factor to less than 2 makes the cluster not reliable ");
+            err();
         }
         System.out.println("total number of thread needed is: " + num_thread_pipeline);
         System.out.println("bottleneck of pipeline: " + final_cluster_size);
@@ -223,8 +231,9 @@ public class TopologyBuilder {
         Properties propSink = topologyBuilder.build_sink(pipeline_length);
 
 
-        //build stages
+        //build stages properties
         ArrayList<Properties> lst_stage_props = new ArrayList<>();
+
         for (int i = 0; i < pipeline_length; i++) {
 
             try {
@@ -234,38 +243,98 @@ public class TopologyBuilder {
             }
         }
 
+        //retrieve defined pipeline
         PipelineFunctions pipelineFunctions = PipelineFunctions.pipeline;
+
+        if (PipelineFunctions.pipeline.getProcessors().size() != pipeline_length) {
+            throw new IllegalArgumentException("user defined pipeline is inconsistent with pipeline_length in config.prop");
+        }
         List<StageProcessor> stages = pipelineFunctions.getProcessors();
 
         // executor of pipeline (processors+source+sink)
         final ExecutorService executor_stage = Executors.newFixedThreadPool(num_thread_pipeline + 2);
 
         try {
+            executor_stage.submit(new Source(propSource));
+
             for (int j = 0; j < lst_stage_props.size(); j++) {
                 int processors = Integer.parseInt(lst_stage_props.get(j).getProperty("stage_processors"));
 
                 if (stages.get(j).getClass().getSimpleName().matches("WindowedAggregateProcessor")) {
                     for (int i = 0; i < processors; i++) {
 
-                        executor_stage.submit(new StatefulAtomicStage(lst_stage_props.get(j), i, stages.get(j))); // fixme we need to look at each fun
+                        // here you can simulate a crash of a stateful stage
+                        CompletableFuture.runAsync(new StatefulAtomicStage(lst_stage_props.get(j), i,
+                                stages.get(j), 7)).exceptionally(throwable -> {
+                            //here we handle restart of crashed processors
+                            System.out.println("stateful restart");
+                            DB dbc = DBMaker.fileDB("crashedThreads.db").make();
+                            ConcurrentMap<Integer, Pair<Integer, String>> mapc =
+                                    dbc.hashMap("crashedThreads", Serializer.INTEGER, Serializer.JAVA).createOrOpen();
 
+                            for (Map.Entry<Integer, Pair<Integer, String>> crashed : mapc.entrySet()) {
+                                System.out.println("restarting processor\t id : " + crashed.getKey() + "\t stagePos: "
+                                        + crashed.getValue().getKey() + " : " + crashed.getValue().getValue());
+                                if(crashed.getValue().getValue().equals("stateful")){
+                                    CompletableFuture.runAsync(new StatefulAtomicStage(lst_stage_props.get(crashed.getValue().getKey()), crashed.getKey(),
+                                            stages.get(crashed.getValue().getKey()), 0));
+                                    System.out.println("continuing on main thread");
+                                    mapc.remove(crashed.getKey(),crashed.getValue());
+                                    dbc.commit();
+
+                                }
+
+                                else{
+                                    System.out.println("there is a queue of failed processes, scrolling");
+                                }
+
+                            }
+                            System.out.println("scrolled every entry of crashed threads");
+                            dbc.close();
+                            return null;
+                        });
                     }
                 } else {
                     for (int i = 0; i < processors; i++) {
+                        // here you can simulate a crash of a stateless stage
 
-                        executor_stage.submit(new AtomicStage(lst_stage_props.get(j), i, stages.get(j))); // fixme we need to look at each fun
+                        CompletableFuture.runAsync(new AtomicStage(lst_stage_props.get(j), i, stages.get(j),
+                                new Random().nextInt(5))).exceptionally(throwable -> {
+                            //here we handle restart of crashed processors
+                            System.out.println("stateless restart");
+                            DB dbc = DBMaker.fileDB("crashedThreads.db").make();
+                            ConcurrentMap<Integer, Pair<Integer, String>> mapc =
+                                    dbc.hashMap("crashedThreads", Serializer.INTEGER, Serializer.JAVA).createOrOpen();
+
+                            for (Map.Entry<Integer, Pair<Integer, String>> crashed : mapc.entrySet()) {
+                                System.out.println("restarting processor\t id : " + crashed.getKey() + "\t stagePos: "
+                                        + crashed.getValue().getKey() + " : " + crashed.getValue().getValue());
+                                if(crashed.getValue().getValue().equals("stateless")){
+                                    CompletableFuture.runAsync(new AtomicStage(lst_stage_props.get(crashed.getValue().getKey()), crashed.getKey(),
+                                            stages.get(crashed.getValue().getKey()), 0));
+                                        mapc.remove(crashed.getKey(),crashed.getValue());
+                                        dbc.commit();
+
+                                }else{
+                                    System.out.println("there is a queue of failed processes, scrolling");
+                                }
+
+                            }
+                            dbc.close();
+                            return null;
+                        });
 
                     }
 
                 }
 
             }
-            executor_stage.submit(new Source(propSource));
+
             executor_stage.submit(new Sink(propSink));
+
             executor_stage.shutdown();
             while (!executor_stage.awaitTermination(10, TimeUnit.SECONDS)) {
             }
-
 
         } catch (InterruptedException e) {
             e.printStackTrace();
@@ -274,10 +343,35 @@ public class TopologyBuilder {
 
     }
 
+    /*Void handleCrash(){
+        //here we handle restart of crashed processors
+        System.out.println("restart here");
+        DB db = DBMaker.fileDB("crashedThreads.db").make();
+        ConcurrentMap<Integer, Pair<Integer, String>> map =
+                db.hashMap("map", Serializer.INTEGER, Serializer.JAVA).createOrOpen();
+
+        for (Map.Entry<Integer, Pair<Integer, String>> crashed : map.entrySet()) {
+            System.out.println("restarting processor\t id : " + crashed.getKey() + "\t stagePos: "
+                    + crashed.getValue().getKey());
+            if (crashed.getValue().getValue().equals("stateful")) {
+                CompletableFuture.runAsync(new StatefulAtomicStage(lst_stage_props.get(j), i,
+                        stages.get(j), 0),executor_stage).exceptionally(throwable -> topologyBuilder.handleCrash());
+                map.remove(crashed.getKey());
+            } else if (crashed.getValue().getValue().equals("stateless")) {
+                CompletableFuture.runAsync(new AtomicStage(lst_stage_props.get(j), i,
+                        stages.get(j)),executor_stage).exceptionally(throwable -> topologyBuilder.handleCrash());
+                map.remove(crashed.getKey());
+            }
+
+        }
+        db.close();
+        return null;
+    }*/
+
     private Properties build_sink(int pipelineLength) {
         Properties props = new Properties();
         Properties global_prop = this.loadEnvProperties("config.properties");
-        props.put("inTopic", "topic_" + pipelineLength);
+        props.put("inTopic", "topic_" + (pipelineLength + 1));
         props.put("bootstrap.servers", global_prop.getProperty("bootstrap.servers"));
         props.put("key.deserializer", StringDeserializer.class.getName());
         props.put("value.deserializer", StringDeserializer.class.getName());

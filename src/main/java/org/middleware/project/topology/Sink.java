@@ -1,5 +1,9 @@
 package org.middleware.project.topology;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -8,15 +12,11 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.KafkaException;
-import org.apache.kafka.common.errors.AuthorizationException;
-import org.apache.kafka.common.errors.OutOfOrderSequenceException;
-import org.apache.kafka.common.errors.ProducerFencedException;
 import org.apache.kafka.common.serialization.StringDeserializer;
-import org.apache.kafka.common.serialization.StringSerializer;
 
 public class Sink implements Runnable {
 
-    private static final boolean print = true;
+    private  boolean firstWrite = true;
     private static final int waitBetweenMsgs = 500;
     private final String  inTopic;
     private String boostrapServers;
@@ -27,45 +27,71 @@ public class Sink implements Runnable {
 
         this.inTopic = properties.getProperty("inTopic");
         this.boostrapServers = properties.getProperty("bootstrap.servers");
+        this.running = true;
 
-        running = true;
-        System.out.println("[SINK]" + "\t" + "boostrapServers = " + boostrapServers);
         init();
 
     }
 
     private void init() {
 
-        final Properties props = new Properties();
+        final Properties consumerProps = new Properties();
+        consumerProps.put("bootstrap.servers", boostrapServers);
+        consumerProps.put("key.deserializer", StringDeserializer.class.getName());
+        consumerProps.put("value.deserializer", StringDeserializer.class.getName());
+        consumerProps.put("isolation.level", "read_committed");
+        consumerProps.put("group.id", "sinkGroup");
+        consumerProps.put("enable.auto.commit", "false");
 
-        props.put("bootstrap.servers", boostrapServers);
-        props.put("key.deserializer", StringDeserializer.class.getName());
-        props.put("value.deserializer", StringDeserializer.class.getName());
-        props.put("isolation.level", "read_committed");
-
-        this.consumer = new KafkaConsumer<String, String>(props);
+        this.consumer = new KafkaConsumer<>(consumerProps);
+        this.consumer.subscribe(Collections.singleton(inTopic));
 
         System.out.println("Sink initialized");
     }
 
 
+    private final void writeMessage(String record) {
+        try (FileWriter writer = new FileWriter(new File(".sink.txt"), true)) {
+
+            StringBuilder sb = new StringBuilder();
+
+            // If is first write, write header first
+            if(firstWrite) {
+                sb.append("SINK RECORDS");
+                sb.append('\n');
+                firstWrite = false;
+            }
+
+            // Write message on txt
+            sb.append(record);
+            sb.append('\n');
+
+            writer.write(sb.toString());
+
+        } catch (FileNotFoundException e) {
+            System.out.println(e.getMessage());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 
     @Override
     public void run() {
             try {
-                System.out.println("Topics: " + inTopic);
-                consumer.subscribe(Collections.singleton(inTopic));
                 while (running) {
-                    final ConsumerRecords<String, String> records = consumer.poll(Duration.of(5, ChronoUnit.MINUTES));
+                    final ConsumerRecords<String, String> records = consumer.poll(Duration.of(30, ChronoUnit.SECONDS));
                     for (final ConsumerRecord<String, String> record : records) {
-                        System.out.println("SINK: " + ".\t" + //
-                                "Partition: " + record.partition() + ".\t" + //
+                        String sinkRecord = "Partition: " + record.partition() + ".\t" + //
                                 "Offset: " + record.offset() + ".\t" + //
                                 "Key: " + record.key() + ".\t" + //
-                                "Value: " + record.value());
+                                "Value: " + record.value();
+
+                        System.out.println("SINK: " + ".\t" + //
+                                sinkRecord);
 
                         // There is also an asynchronous version that invokes a callback
                         consumer.commitSync();
+                        writeMessage(sinkRecord);
                     }
                 }
                 try {
@@ -78,7 +104,7 @@ public class Sink implements Runnable {
         } catch (KafkaException e) {
             System.out.println("Sink failed. Try again.");
         }
-        System.out.println("source closing");
+        System.out.println("sink closing");
         consumer.close();
 
 

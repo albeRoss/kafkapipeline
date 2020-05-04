@@ -2,12 +2,10 @@ package org.middleware.project.topology;
 
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
+import java.util.concurrent.ConcurrentMap;
 
+import javafx.util.Pair;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -33,20 +31,22 @@ public class AtomicStage implements Processor {
 
     //private static final int numRepetitions = 200;
 
-    protected final String group;
-    protected final String inTopic;
-    protected final String outTopic;
+    protected  String group;
+    protected  String inTopic;
+    protected  String outTopic;
     protected String boostrapServers;
-    protected final String transactionId;
-    protected final String stage_function;
-    protected final StageProcessor stageProcessor;
+    protected  String transactionId;
+    protected  String stage_function;
+    protected  StageProcessor stageProcessor;
     protected volatile boolean running;
 
     protected KafkaProducer<String, String> producer;
     protected KafkaConsumer<String, String> consumer;
-    protected final int id;
+    protected  int id;
+    protected int pos;
+    private int simulateCrash;
 
-    public AtomicStage(Properties properties, int id, StageProcessor stageProcessor) {
+    public AtomicStage(Properties properties, int id, StageProcessor stageProcessor, int simulateCrash) {
         this.group = properties.getProperty("group.id");
         this.inTopic = properties.getProperty("inTopic");
         this.outTopic = properties.getProperty("outTopic");
@@ -55,12 +55,20 @@ public class AtomicStage implements Processor {
         this.transactionId = "atomic_forwarder_" + properties.getProperty("group.id") + "_transactional_id_" + id;
         this.stage_function = stageProcessor.getClass().getSimpleName();
         this.id = id;
+        if(simulateCrash == 0) this.simulateCrash = Integer.MAX_VALUE;
+        else this.simulateCrash = simulateCrash;
+
+        //infer position from groupId
+        this.pos = Integer.parseInt(group.substring(6));
         running = true;
         System.out.println("[ ATOMICSTAGE : "+this.stage_function+" ]" +"\t group = " + group +"\t inTopic = " + inTopic
                 +"\t outTopic = " + outTopic+"\t boostrapServers = " + boostrapServers);
         //System.out.println("\t transactionId = " + transactionId);
 
         init();
+    }
+
+    public AtomicStage() {
     }
 
     @Override
@@ -73,6 +81,7 @@ public class AtomicStage implements Processor {
         consumerProps.put("value.deserializer", StringDeserializer.class.getName());
         consumerProps.put("isolation.level", "read_committed");
         consumerProps.put("enable.auto.commit", "false");
+        consumerProps.put("max.poll.records","1");
 
 
         this.consumer = new KafkaConsumer<>(consumerProps);
@@ -125,7 +134,7 @@ public class AtomicStage implements Processor {
 
 
             while(running) {
-                ConsumerRecords<String, String> records = this.consumer.poll(Duration.of(10, ChronoUnit.SECONDS));
+                ConsumerRecords<String, String> records = this.consumer.poll(Duration.of(1, ChronoUnit.MINUTES));
                 this.producer.beginTransaction();
 
                 for (final ConsumerRecord<String, String> record : records) {
@@ -139,7 +148,11 @@ public class AtomicStage implements Processor {
                     process(record);
 
 
-                    // this.producer.send(new ProducerRecord<>(outTopic, record.key(), record.value())); //replaced
+                    if (simulateCrash > 0){
+                        simulateCrash--;
+                    }else {
+                        crash();
+                    }
 
                 }
                 // The producer manually commits the outputs for the consumer within the
@@ -171,14 +184,31 @@ public class AtomicStage implements Processor {
             System.out.println("     aborts the transaction. Try again.");
             producer.abortTransaction();
             // retry comes for free
-        } finally {
+        } /*finally {
             System.out.println("    finally closing atomic forwarder at group: " + group);
             consumer.close();
             producer.close();
             running = false;
 
-        }
+        }*/
 
+
+    }
+
+    private void crash(){
+
+        DB dbc = DBMaker.fileDB("crashedThreads.db").transactionEnable().make();
+        ConcurrentMap mapc = dbc.hashMap("crashedThreads").createOrOpen();
+
+        //we need the id of the processor and the stage position
+
+        mapc.put(id, new Pair<>(pos,"stateless"));
+        dbc.commit();
+        dbc.close();
+        consumer.close();
+        producer.close();
+        running = false;
+        throw new RuntimeException("[failure] : "+ this.stageProcessor.getClass().getSimpleName());
 
     }
 
