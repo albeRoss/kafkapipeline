@@ -204,22 +204,24 @@ public class StatefulAtomicStage extends AtomicStage {
 
 
         long lastLocalConsumedOffset = getOffset(db);
-        System.out.println("last committed offset is :"+lastLocalConsumedOffset);
+        //System.out.println("last committed offset is :"+lastLocalConsumedOffset);
 
         //need to compare last consumed offset with last local committed offset
         if(lastLocalConsumedOffset !=0){
 
-            //System.out.println(Arrays.toString(consumer.endOffsets(Collections.singleton(partition)).values().toArray()[0]));
-            System.out.println("last commmitted offset: "+ consumer.committed(partition));
 
-            //retrieve the last committed kafka offset of intopic and partition
+            long nextOffsetTobeFetched = (long) consumer.endOffsets(Collections.singleton(partition)).values().toArray()[0];
+            long lastOffsetConsumed = nextOffsetTobeFetched-2;
+            System.out.println("last kafka fetched offset was: "+lastOffsetConsumed);
+
+            //retrieve the last committed kafka offset of intopic and partition during transaction
             long kafkaOffset = consumer.committed(partition).offset();
-            System.out.println("last kafka committed offset is :"+(kafkaOffset));
+            System.out.println("last kafka committed offset is :"+(kafkaOffset-1));
             //if necessary rollback
-            if(kafkaOffset > lastLocalConsumedOffset+1){
+            if((kafkaOffset > lastOffsetConsumed) && (lastOffsetConsumed > lastLocalConsumedOffset)){
 
                 System.out.println("Consumer last committed offset is: "+ kafkaOffset +
-                        " but our last local saved consumed Offset is: "+ lastLocalConsumedOffset+
+                        " but last consumed Offset is: "+ lastOffsetConsumed+
                         "we should poll one record to sync state, without forwarding the record ");
 
                 //rollback last kafka-uncommitted message
@@ -227,7 +229,7 @@ public class StatefulAtomicStage extends AtomicStage {
                 //lastLocalConsumedOffset = kafkaOffset-2;
                 //System.out.println("Resort to old committed values, and proceed from there");
 
-                consumer.seek(this.partition, lastLocalConsumedOffset+2);
+                consumer.seek(this.partition, lastOffsetConsumed);
                 prerestart = true;
 
             }else {
@@ -282,6 +284,16 @@ public class StatefulAtomicStage extends AtomicStage {
 
                 }
 
+                if (simulateCrash > 0){
+                    simulateCrash--;
+                }else {
+                    db.rollback();
+                    //this.producer.sendOffsetsToTransaction(map, group);
+                    db.close();
+                    crash();
+                }
+                Thread.sleep(100);
+
                 //System.out.println(producer.partitionsFor(outTopic));
 
                 // The producer manually commits the outputs for the consumer within the
@@ -293,21 +305,10 @@ public class StatefulAtomicStage extends AtomicStage {
                     map.put(partition, new OffsetAndMetadata(lastOffset + 1));
                 }
 
-
                                         // possible crash here we need to rollback on previous committed state (only one slide)
                                          // NB the poll gets 1 record at a time only.
                 this.producer.sendOffsetsToTransaction(map, group);
                 this.producer.commitTransaction(); //  the offsets and the output records will be committed as an atomic uni
-
-                if (simulateCrash > 0){
-                    simulateCrash--;
-                }else {
-                    db.rollback();
-                    //this.producer.sendOffsetsToTransaction(map, group);
-                    db.close();
-                    crash();
-                }
-                Thread.sleep(100);
 
                 db.commit();
 

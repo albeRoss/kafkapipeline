@@ -1,10 +1,6 @@
 package org.middleware.project.Processors;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.mapdb.DB;
-import org.mapdb.DBMaker;
-import org.mapdb.HTreeMap;
-import org.mapdb.Serializer;
 import org.middleware.project.functions.WindowedAggregate;
 
 import java.util.*;
