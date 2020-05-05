@@ -29,10 +29,8 @@ public class Source implements Runnable {
         this.transactionId = properties.getProperty("transactionId");
 
         running = true;
-        System.out.println("[SOURCE]");
-        System.out.println("outTopic = " + outTopic);
-        System.out.println("transactionId = " + transactionId);
-        System.out.println("boostrapServers = " + boostrapServers);
+        System.out.println("[SOURCE] \t"+"outTopic = " + outTopic+"\ttransactionId = " + transactionId+
+                "\tboostrapServers = " + boostrapServers);
         init();
 
     }
@@ -47,6 +45,7 @@ public class Source implements Runnable {
         props.put("enable.idempotence", true);
         props.put("transactional.id", transactionId);
         this.producer = new KafkaProducer<>(props);
+
         System.out.println("Source initialized");
     }
 
@@ -56,9 +55,12 @@ public class Source implements Runnable {
 
         final List<String> topics = Collections.singletonList(outTopic);
         final int numMessages = 50;
-        List<String> alpha = new ArrayList<>(Arrays.asList("A","B","C","D","E","F","G","H","I","L","M","N","O","P","Q","R","S","T","U","V","Z",
+        List<String> alpha = new ArrayList<>(Arrays.asList("A","B","C","D","E","F","G","H","I","L","M","N","O","P","Q",
+                "R","S","T","U","V","Z",
                 "A","B","C","D","E","F","G","H","I","L","M","N","O","P","Q","R","S","T","U","V","Z",
                 "A","B","C","D","E","F","G","H","I","L","M","N","O","P","Q","R","S","T","U","V","Z"));
+        List<String> phrase = new ArrayList<>(Arrays.asList("Life", "is", "what", "happens", "when", "you're", "busy",
+                "making", "other", "plans"));
         final Random r = new Random();
         // This must be called before any method that involves transactions
         producer.initTransactions();
@@ -67,8 +69,8 @@ public class Source implements Runnable {
             for (int i = 0; i < numMessages; i++) {
                 final String topic = topics.get(r.nextInt(topics.size()));
                 producer.beginTransaction();
-                final String key = "Key" +0;// r.nextInt(0);
-                final String value = alpha.get(i);
+                final String key = "Key" + r.nextInt(5);
+                final String value = phrase.get(i);
 
                 System.out.println("[SOURCE] Topic : " + topic + "\t" + //
                         "Key: " + key + "\t" + //

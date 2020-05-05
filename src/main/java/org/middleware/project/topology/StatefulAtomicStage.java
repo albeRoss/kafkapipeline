@@ -22,7 +22,6 @@ import org.mapdb.HTreeMap;
 import org.mapdb.Serializer;
 import org.middleware.project.Processors.StageProcessor;
 import org.middleware.project.Processors.WindowedAggregateProcessor;
-import org.middleware.project.utils.Tuple;
 
 
 import java.time.Duration;
@@ -35,7 +34,6 @@ public class StatefulAtomicStage extends AtomicStage {
     private TopicPartition partition;
     private WindowedAggregateProcessor winStageProcessor;
     private int simulateCrash;
-    //private KafkaConsumer<String, String> consumerHelper;
 
     public StatefulAtomicStage(Properties properties, int id, StageProcessor stageProcessor, int simulateCrash) {
         if(simulateCrash == 0) this.simulateCrash = Integer.MAX_VALUE;
@@ -44,14 +42,16 @@ public class StatefulAtomicStage extends AtomicStage {
         this.inTopic = properties.getProperty("inTopic");
         this.outTopic = properties.getProperty("outTopic");
         this.boostrapServers = properties.getProperty("bootstrap.servers");
-        this.stageProcessor = stageProcessor;
+
         this.transactionId = "atomic_forwarder_" + properties.getProperty("group.id") + "_transactional_id_" + id;
         this.stage_function = stageProcessor.getClass().getSimpleName();
         this.id = id;
         running = true;
-        System.out.println("[ ATOMICSTAGE : "+this.stage_function+" ]" +"\t group = " + group +"\t inTopic = " + inTopic
+        System.out.println("[ ATOMICSTAGE : "+this.stage_function+" : "+this.id+" ]" +"\t group = " + group +"\t inTopic = " + inTopic
                 +"\t outTopic = " + outTopic+"\t boostrapServers = " + boostrapServers);
-        winStageProcessor = (WindowedAggregateProcessor) stageProcessor;
+
+        this.stageProcessor = (WindowedAggregateProcessor) stageProcessor;
+        winStageProcessor = ((WindowedAggregateProcessor) stageProcessor).clone();
 
         this.pos = Integer.parseInt(group.substring(6));
 
@@ -115,7 +115,7 @@ public class StatefulAtomicStage extends AtomicStage {
         ConcurrentMap<Integer,Long> offsetsMap = getOffsetsMap(db);
         ConcurrentMap<String, List<String>> oldSlidedValues = getOldSlidedValues(db);
 
-
+        //first time
         offsetsMap.putIfAbsent(this.id, (long) 0);
 
         //in case first start: initialize windows as empty
@@ -135,25 +135,9 @@ public class StatefulAtomicStage extends AtomicStage {
 
         this.consumer = new KafkaConsumer<>(consumerProps);
 
-        /*      consumer helper      *//*
-
-
-        final Properties consumerPropsHelper = new Properties();
-        consumerPropsHelper.put("bootstrap.servers", boostrapServers);
-        consumerPropsHelper.put("group.id", group);
-        consumerPropsHelper.put("key.deserializer", StringDeserializer.class.getName());
-        consumerPropsHelper.put("value.deserializer", StringDeserializer.class.getName());
-        consumerPropsHelper.put("isolation.level", "read_committed");
-        consumerPropsHelper.put("enable.auto.commit", "false");
-        consumerPropsHelper.put("max.poll.records","1");
-        this.consumerHelper = new KafkaConsumer<>(consumerPropsHelper);
-
-        this.consumerHelper.subscribe(Collections.singleton(outTopic));
-
-        *//*---------------------------*/
-
         this.partition = new TopicPartition(inTopic, id);
         this.consumer.assign(Collections.singleton(partition));
+
 
         final Properties producerProps = new Properties();
         producerProps.put("bootstrap.servers", boostrapServers);
@@ -166,7 +150,7 @@ public class StatefulAtomicStage extends AtomicStage {
         this.producer = new KafkaProducer<>(producerProps);
         db.commit();
         db.close();
-        System.out.println("Stateful stage initialized");
+        System.out.println("Stateful processor initialized");
 
     }
 
@@ -204,7 +188,6 @@ public class StatefulAtomicStage extends AtomicStage {
 
 
         long lastLocalConsumedOffset = getOffset(db);
-        //System.out.println("last committed offset is :"+lastLocalConsumedOffset);
 
         //need to compare last consumed offset with last local committed offset
         if(lastLocalConsumedOffset !=0){
@@ -222,12 +205,7 @@ public class StatefulAtomicStage extends AtomicStage {
 
                 System.out.println("Consumer last committed offset is: "+ kafkaOffset +
                         " but last consumed Offset is: "+ lastOffsetConsumed+
-                        "we should poll one record to sync state, without forwarding the record ");
-
-                //rollback last kafka-uncommitted message
-                //winStageProcessor.rollback();
-                //lastLocalConsumedOffset = kafkaOffset-2;
-                //System.out.println("Resort to old committed values, and proceed from there");
+                        "\n.We should poll one record to sync state, without forwarding the record ");
 
                 consumer.seek(this.partition, lastOffsetConsumed);
                 prerestart = true;
@@ -262,6 +240,7 @@ public class StatefulAtomicStage extends AtomicStage {
             this.producer.initTransactions();
 
             while (running){
+
                 // max.poll.records is set to 1
                 ConsumerRecords<String, String> records = this.consumer.poll(Duration.of(1, ChronoUnit.MINUTES));
                 this.producer.beginTransaction();
@@ -278,23 +257,23 @@ public class StatefulAtomicStage extends AtomicStage {
 
                     // save last offset processed
                     long processedOffset = record.offset();
-
                     HTreeMap<Integer, Long> processedOffsetMap = getOffsetsMap(db);
                     processedOffsetMap.put(id, processedOffset);
 
                 }
 
+                /* CRASH BLOCK CODE */
+
                 if (simulateCrash > 0){
                     simulateCrash--;
                 }else {
-                    db.rollback();
-                    //this.producer.sendOffsetsToTransaction(map, group);
+                    //db.rollback();
                     db.close();
                     crash();
                 }
                 Thread.sleep(100);
 
-                //System.out.println(producer.partitionsFor(outTopic));
+                /*-----------------*/
 
                 // The producer manually commits the outputs for the consumer within the
                 // transaction
@@ -305,12 +284,16 @@ public class StatefulAtomicStage extends AtomicStage {
                     map.put(partition, new OffsetAndMetadata(lastOffset + 1));
                 }
 
-                                        // possible crash here we need to rollback on previous committed state (only one slide)
-                                         // NB the poll gets 1 record at a time only.
+                //TRY CRASH
+
                 this.producer.sendOffsetsToTransaction(map, group);
                 this.producer.commitTransaction(); //  the offsets and the output records will be committed as an atomic uni
 
+                //TRY CRASH
+
                 db.commit();
+
+                //TRY CRASH
 
 
             }
@@ -337,18 +320,7 @@ public class StatefulAtomicStage extends AtomicStage {
             // if it aborts
             db.rollback();
             // retry comes for free
-        } /*catch (RuntimeException e){
-            System.out.println("crash restart thread");
-            e.printStackTrace();
-
-        } finally {
-            System.out.println("    finally closing atomic forwarder at group: " + group);
-            consumer.close();
-            producer.close();
-            running = false;
-            db.close();
-
-        }*/
+        }
 
     }
 

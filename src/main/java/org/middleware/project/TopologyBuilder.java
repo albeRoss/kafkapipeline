@@ -77,7 +77,7 @@ public class TopologyBuilder {
         props.put("key.deserializer", StringDeserializer.class.getName());
         props.put("value.deserializer", StringDeserializer.class.getName());
         props.put("transactionId", "source_transactional_id");
-        System.out.println("Source built");
+        System.out.println("Source configured");
 
         return props;
 
@@ -267,10 +267,10 @@ public class TopologyBuilder {
                                     //here we handle restart of crashed processors
 
                             DB dbc = DBMaker.fileDB("crashedThreads.db").fileMmapEnableIfSupported().make();
-                            System.out.println("stateful restart");
+                            System.out.println("stateful processor restart");
                             ConcurrentMap<Integer, Pair<Integer, String>> mapc =
                                     dbc.hashMap("crashedThreads", Serializer.INTEGER, Serializer.JAVA).createOrOpen();
-                            System.out.println("size of current map is: "+ mapc.size());
+                            System.out.println("size of current crashedThreadmap is: "+ mapc.size());
                             for (Map.Entry<Integer, Pair<Integer, String>> crashed : mapc.entrySet()) {
                                 System.out.println("restarting processor\t id : " + crashed.getKey() + "\t stagePos: "
                                         + crashed.getValue().getKey() + " : " + crashed.getValue().getValue());
@@ -279,9 +279,8 @@ public class TopologyBuilder {
                                     int pos = crashed.getValue().getKey();
                                     CompletableFuture.runAsync(new StatefulAtomicStage(lst_stage_props.get(pos-1), id,
                                             stages.get(pos-1), 0),Executors.newFixedThreadPool(1));
-                                    System.out.println("continuing on main thread");
+                                    //System.out.println("continuing on main thread");
                                     mapc.remove(crashed.getKey(), crashed.getValue());
-                                    //dbc.commit();
 
                                 } else {
                                     System.out.println("there is a queue of failed processes, scrolling");
@@ -300,12 +299,11 @@ public class TopologyBuilder {
                                 6)).exceptionally(throwable -> {
                             //here we handle restart of crashed processors
                             DB dbc = DBMaker.fileDB("crashedThreads.db").fileMmapEnableIfSupported().make();
-                            System.out.println("stateless crashed");
+                            System.out.println("stateless processor restart");
                             ConcurrentMap<Integer, Pair<Integer, String>> mapc =
                                     dbc.hashMap("crashedThreads", Serializer.INTEGER, Serializer.JAVA).createOrOpen();
-                            System.out.println("stateless restart");
                             //if (mapc.isEmpty()) System.out.println("error: map empty");
-                            //System.out.println("size of current map is: "+ mapc.size());
+                            System.out.println("size of current crashedThreadmap is: "+ mapc.size());
                             for (Map.Entry<Integer, Pair<Integer, String>> crashed : mapc.entrySet()) {
                                 if (crashed.getValue().getValue().equals("stateless")) {
                                     int id = crashed.getKey();
@@ -348,31 +346,6 @@ public class TopologyBuilder {
 
     }
 
-    /*Void handleCrash(){
-        //here we handle restart of crashed processors
-        System.out.println("restart here");
-        DB db = DBMaker.fileDB("crashedThreads.db").make();
-        ConcurrentMap<Integer, Pair<Integer, String>> map =
-                db.hashMap("map", Serializer.INTEGER, Serializer.JAVA).createOrOpen();
-
-        for (Map.Entry<Integer, Pair<Integer, String>> crashed : map.entrySet()) {
-            System.out.println("restarting processor\t id : " + crashed.getKey() + "\t stagePos: "
-                    + crashed.getValue().getKey());
-            if (crashed.getValue().getValue().equals("stateful")) {
-                CompletableFuture.runAsync(new StatefulAtomicStage(lst_stage_props.get(j), i,
-                        stages.get(j), 0),executor_stage).exceptionally(throwable -> topologyBuilder.handleCrash());
-                map.remove(crashed.getKey());
-            } else if (crashed.getValue().getValue().equals("stateless")) {
-                CompletableFuture.runAsync(new AtomicStage(lst_stage_props.get(j), i,
-                        stages.get(j)),executor_stage).exceptionally(throwable -> topologyBuilder.handleCrash());
-                map.remove(crashed.getKey());
-            }
-
-        }
-        db.close();
-        return null;
-    }*/
-
     private Properties build_sink(int pipelineLength) {
         Properties props = new Properties();
         Properties global_prop = this.loadEnvProperties("config.properties");
@@ -380,7 +353,7 @@ public class TopologyBuilder {
         props.put("bootstrap.servers", global_prop.getProperty("bootstrap.servers"));
         props.put("key.deserializer", StringDeserializer.class.getName());
         props.put("value.deserializer", StringDeserializer.class.getName());
-        System.out.println("Sink built");
+        System.out.println("Sink configured");
         return props;
 
     }

@@ -48,7 +48,6 @@ public class AtomicStage implements Processor {
     private int simulateCrash;
 
     public AtomicStage(Properties properties, int id, StageProcessor stageProcessor, int simulateCrash) {
-        System.out.println("hello");
         this.group = properties.getProperty("group.id");
         this.inTopic = properties.getProperty("inTopic");
         this.outTopic = properties.getProperty("outTopic");
@@ -92,7 +91,6 @@ public class AtomicStage implements Processor {
 
         this.consumer = new KafkaConsumer<>(consumerProps);
         this.consumer.subscribe(Collections.singleton(inTopic));
-        //System.out.println("subscribed to : " + inTopic);
 
         final Properties producerProps = new Properties();
         producerProps.put("bootstrap.servers", boostrapServers);
@@ -109,7 +107,7 @@ public class AtomicStage implements Processor {
     public void process(final ConsumerRecord<String, String> record) {
 
         if (stageProcessor instanceof FlatMapProcessor){
-            //System.out.println("I'm a flatmap");
+
             HashMap<String,List<String>> processed = stageProcessor.process(record);
 
             processed.forEach((key,values) -> {
@@ -139,13 +137,13 @@ public class AtomicStage implements Processor {
             this.producer.initTransactions();
 
 
-            while(running) {
+            while (running) {
                 ConsumerRecords<String, String> records = this.consumer.poll(Duration.of(1, ChronoUnit.MINUTES));
                 this.producer.beginTransaction();
 
                 for (final ConsumerRecord<String, String> record : records) {
-                    System.out.println("[GROUP : "+group+" ] " + "["+inTopic+"] " +
-                            "[FORWARDER : "+id+" ] : "+
+                    System.out.println("[GROUP : " + group + " ] " + "[" + inTopic + "] " +
+                            "[FORWARDER : " + id + " ] : " +
                             "Partition: " + record.partition() + "\t" + //
                             "Offset: " + record.offset() + "\t" + //
                             "Key: " + record.key() + "\t" + //
@@ -154,15 +152,8 @@ public class AtomicStage implements Processor {
                     process(record);
 
 
-
-
                 }
 
-                if (simulateCrash > 0){
-                    simulateCrash--;
-                }else {
-                    crash();
-                }
                 // The producer manually commits the outputs for the consumer within the
                 // transaction
                 final Map<TopicPartition, OffsetAndMetadata> map = new HashMap<>();
@@ -176,11 +167,22 @@ public class AtomicStage implements Processor {
                 this.producer.commitTransaction();
 
 
+                if (simulateCrash > 0) {
+                    simulateCrash--;
+                } else {
+                    crash();
+                }
+                Thread.sleep(100);
+
+
             }
             this.consumer.close();
             this.producer.close();
 
+        }catch (InterruptedException e) {
+                System.out.println("AtomicStatelessStageinterrupted");
 
+                e.printStackTrace();
         } catch (ProducerFencedException | OutOfOrderSequenceException | AuthorizationException e) {
             // We can't recover from these exceptions, so our only option is to close the producer and exit.
             System.out.println("    We can't recover from these exceptions, so our only option is to close the producer and exit.");
@@ -192,13 +194,7 @@ public class AtomicStage implements Processor {
             System.out.println("     aborts the transaction. Try again.");
             producer.abortTransaction();
             // retry comes for free
-        } /*finally {
-            System.out.println("    finally closing atomic forwarder at group: " + group);
-            consumer.close();
-            producer.close();
-            running = false;
-
-        }*/
+        }
 
 
     }
@@ -212,6 +208,7 @@ public class AtomicStage implements Processor {
 
         mapc.put(id, new Pair<>(pos,"stateless"));
         dbc.close();
+        producer.abortTransaction();
         consumer.close();
         producer.close();
         running = false;

@@ -15,12 +15,18 @@ public class WindowedAggregateProcessor extends StageProcessor{
     private WindowedAggregate windowedAggregate;
     private int windowSize;
     private int slide;
+    private int pos;
 
     public WindowedAggregateProcessor(WindowedAggregate windowedAggregate, int windowSize, int slide, int stagePos) {
         this.windowedAggregate = windowedAggregate;
         this.windowSize = windowSize;
         this.slide = slide;
         this.stageGroup = "group_"+stagePos;
+        this.pos = stagePos;
+    }
+
+    public WindowedAggregateProcessor clone(){
+        return new WindowedAggregateProcessor(this.windowedAggregate,this.windowSize,this.slide,this.pos);
     }
 
     public HashMap process(final ConsumerRecord<String, String> record) {
