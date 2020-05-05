@@ -48,7 +48,7 @@ public class WindowedAggregateProcessor extends StageProcessor{
                 List<String> slidedWindow = new ArrayList<>(winValues.subList(winValues.size() - 1 - windowSize + slide, winValues.size()));
                 windows.put(key, slidedWindow); // Slide window
 
-                System.out.println("window slided");
+                //System.out.println("window slided");
 
             } else {
                 winValues.add(value);
@@ -73,7 +73,7 @@ public class WindowedAggregateProcessor extends StageProcessor{
             List<String> winValues = windows.get(k);
             List<String> slidedWindow = new ArrayList<>(winValues.subList(0,
                     winValues.size() - slide));
-            slidedWindow.addAll(v);
+            slidedWindow.addAll(0,v);
             windows.put(k,slidedWindow);
         });
     }

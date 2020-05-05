@@ -39,6 +39,7 @@ public class AtomicStage implements Processor {
     protected  String stage_function;
     protected  StageProcessor stageProcessor;
     protected volatile boolean running;
+    protected volatile boolean prerestart;
 
     protected KafkaProducer<String, String> producer;
     protected KafkaConsumer<String, String> consumer;
@@ -47,6 +48,7 @@ public class AtomicStage implements Processor {
     private int simulateCrash;
 
     public AtomicStage(Properties properties, int id, StageProcessor stageProcessor, int simulateCrash) {
+        System.out.println("hello");
         this.group = properties.getProperty("group.id");
         this.inTopic = properties.getProperty("inTopic");
         this.outTopic = properties.getProperty("outTopic");
@@ -56,10 +58,14 @@ public class AtomicStage implements Processor {
         this.stage_function = stageProcessor.getClass().getSimpleName();
         this.id = id;
         if(simulateCrash == 0) this.simulateCrash = Integer.MAX_VALUE;
-        else this.simulateCrash = simulateCrash;
+        else {
+            this.simulateCrash = simulateCrash;
+            System.out.println("this processor will crash: \t"+ this.id +"\t"+group);
+        }
 
         //infer position from groupId
         this.pos = Integer.parseInt(group.substring(6));
+
         running = true;
         System.out.println("[ ATOMICSTAGE : "+this.stage_function+" ]" +"\t group = " + group +"\t inTopic = " + inTopic
                 +"\t outTopic = " + outTopic+"\t boostrapServers = " + boostrapServers);
@@ -148,12 +154,14 @@ public class AtomicStage implements Processor {
                     process(record);
 
 
-                    if (simulateCrash > 0){
-                        simulateCrash--;
-                    }else {
-                        crash();
-                    }
 
+
+                }
+
+                if (simulateCrash > 0){
+                    simulateCrash--;
+                }else {
+                    crash();
                 }
                 // The producer manually commits the outputs for the consumer within the
                 // transaction
@@ -197,17 +205,17 @@ public class AtomicStage implements Processor {
 
     private void crash(){
 
-        DB dbc = DBMaker.fileDB("crashedThreads.db").transactionEnable().make();
+        DB dbc = DBMaker.fileDB("crashedThreads.db").fileMmapEnableIfSupported().make();
         ConcurrentMap mapc = dbc.hashMap("crashedThreads").createOrOpen();
 
         //we need the id of the processor and the stage position
 
         mapc.put(id, new Pair<>(pos,"stateless"));
-        dbc.commit();
         dbc.close();
         consumer.close();
         producer.close();
         running = false;
+        System.out.println("failure!");
         throw new RuntimeException("[failure] : "+ this.stageProcessor.getClass().getSimpleName());
 
     }

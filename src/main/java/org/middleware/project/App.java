@@ -7,6 +7,7 @@ import org.mapdb.Serializer;
 import org.middleware.project.Processors.StageProcessor;
 import org.middleware.project.Processors.WindowedAggregateProcessor;
 import org.middleware.project.functions.WindowedAggregate;
+import org.middleware.project.topology.AtomicStage;
 
 
 import java.io.*;
@@ -206,7 +207,7 @@ public class App
 
         //second case
 
-        int id = 1;
+        /*int id = 1;
         String group = "group1";
         final int state = 4;
         Runnable runnableTask = () -> {
@@ -229,11 +230,45 @@ public class App
                         throw new RuntimeException("crash!");
                     }
                 }
-        };
-        ExecutorService executor = Executors.newFixedThreadPool(1);
-        Future obj = executor.submit(runnableTask);
+        };*/
+        ExecutorService executor = Executors.newFixedThreadPool(5);
+        //Future obj = executor.submit(runnableTask);
 
-        try {
+        Runnable runnable = () -> {
+            int i = 5;
+            while(i>0){
+                System.out.println("runnable running");
+                i--;
+            }
+        };
+
+        CompletableFuture.runAsync(new Runnable() {
+            @Override
+            public void run() {
+                int i = 5;
+                while(i>0){
+                    System.out.println("hello");
+                    i--;
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }throw new RuntimeException("error");
+            }
+        },executor).exceptionally(throwable -> {
+            System.out.println("error occurred");
+            return null;
+        }).thenRunAsync(new Runnable() {
+            @Override
+            public void run() {
+                CompletableFuture.runAsync(runnable);
+            }
+        });
+
+
+
+       /* try {
             obj.get();
 
         } catch (ExecutionException | RuntimeException e) {
@@ -245,7 +280,7 @@ public class App
         while (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
         }
 
-        System.out.println("here we end");
+        System.out.println("here we end");*/
 
 
        /* DB db2 = app.openDBSession();

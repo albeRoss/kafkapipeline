@@ -15,7 +15,7 @@ import org.middleware.project.Processors.Processor;
 public class Source implements Runnable {
 
     private static final boolean print = true;
-    private static final int waitBetweenMsgs = 1000;
+    private static final int waitBetweenMsgs = 2000;
     private final String outTopic;
     private String boostrapServers;
     private final String transactionId;
@@ -55,8 +55,10 @@ public class Source implements Runnable {
 
 
         final List<String> topics = Collections.singletonList(outTopic);
-        final int numMessages = 10;
-        List<String> alpha = new ArrayList<>(Arrays.asList("A","B","C","D","E","F","G","H","I","L","M","N","O","P","Q","R","S","T","U","V","Z"));
+        final int numMessages = 50;
+        List<String> alpha = new ArrayList<>(Arrays.asList("A","B","C","D","E","F","G","H","I","L","M","N","O","P","Q","R","S","T","U","V","Z",
+                "A","B","C","D","E","F","G","H","I","L","M","N","O","P","Q","R","S","T","U","V","Z",
+                "A","B","C","D","E","F","G","H","I","L","M","N","O","P","Q","R","S","T","U","V","Z"));
         final Random r = new Random();
         // This must be called before any method that involves transactions
         producer.initTransactions();

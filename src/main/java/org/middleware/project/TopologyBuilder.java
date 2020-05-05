@@ -253,9 +253,7 @@ public class TopologyBuilder {
 
         // executor of pipeline (processors+source+sink)
         final ExecutorService executor_stage = Executors.newFixedThreadPool(num_thread_pipeline + 2);
-
         try {
-            executor_stage.submit(new Source(propSource));
 
             for (int j = 0; j < lst_stage_props.size(); j++) {
                 int processors = Integer.parseInt(lst_stage_props.get(j).getProperty("stage_processors"));
@@ -265,62 +263,69 @@ public class TopologyBuilder {
 
                         // here you can simulate a crash of a stateful stage
                         CompletableFuture.runAsync(new StatefulAtomicStage(lst_stage_props.get(j), i,
-                                stages.get(j), 7)).exceptionally(throwable -> {
-                            //here we handle restart of crashed processors
+                                stages.get(j), 4)).exceptionally(throwable -> {
+                                    //here we handle restart of crashed processors
+
+                            DB dbc = DBMaker.fileDB("crashedThreads.db").fileMmapEnableIfSupported().make();
                             System.out.println("stateful restart");
-                            DB dbc = DBMaker.fileDB("crashedThreads.db").make();
                             ConcurrentMap<Integer, Pair<Integer, String>> mapc =
                                     dbc.hashMap("crashedThreads", Serializer.INTEGER, Serializer.JAVA).createOrOpen();
-
+                            System.out.println("size of current map is: "+ mapc.size());
                             for (Map.Entry<Integer, Pair<Integer, String>> crashed : mapc.entrySet()) {
                                 System.out.println("restarting processor\t id : " + crashed.getKey() + "\t stagePos: "
                                         + crashed.getValue().getKey() + " : " + crashed.getValue().getValue());
-                                if(crashed.getValue().getValue().equals("stateful")){
-                                    CompletableFuture.runAsync(new StatefulAtomicStage(lst_stage_props.get(crashed.getValue().getKey()), crashed.getKey(),
-                                            stages.get(crashed.getValue().getKey()), 0));
+                                if (crashed.getValue().getValue().equals("stateful")) {
+                                    int id = crashed.getKey();
+                                    int pos = crashed.getValue().getKey();
+                                    CompletableFuture.runAsync(new StatefulAtomicStage(lst_stage_props.get(pos-1), id,
+                                            stages.get(pos-1), 0),Executors.newFixedThreadPool(1));
                                     System.out.println("continuing on main thread");
-                                    mapc.remove(crashed.getKey(),crashed.getValue());
-                                    dbc.commit();
+                                    mapc.remove(crashed.getKey(), crashed.getValue());
+                                    //dbc.commit();
 
-                                }
-
-                                else{
+                                } else {
                                     System.out.println("there is a queue of failed processes, scrolling");
                                 }
 
                             }
-                            System.out.println("scrolled every entry of crashed threads");
                             dbc.close();
+                            System.out.println("scrolled every entry of crashed threads");
                             return null;
                         });
                     }
                 } else {
                     for (int i = 0; i < processors; i++) {
                         // here you can simulate a crash of a stateless stage
-
                         CompletableFuture.runAsync(new AtomicStage(lst_stage_props.get(j), i, stages.get(j),
-                                new Random().nextInt(5))).exceptionally(throwable -> {
+                                6)).exceptionally(throwable -> {
                             //here we handle restart of crashed processors
-                            System.out.println("stateless restart");
-                            DB dbc = DBMaker.fileDB("crashedThreads.db").make();
+                            DB dbc = DBMaker.fileDB("crashedThreads.db").fileMmapEnableIfSupported().make();
+                            System.out.println("stateless crashed");
                             ConcurrentMap<Integer, Pair<Integer, String>> mapc =
                                     dbc.hashMap("crashedThreads", Serializer.INTEGER, Serializer.JAVA).createOrOpen();
-
+                            System.out.println("stateless restart");
+                            //if (mapc.isEmpty()) System.out.println("error: map empty");
+                            //System.out.println("size of current map is: "+ mapc.size());
                             for (Map.Entry<Integer, Pair<Integer, String>> crashed : mapc.entrySet()) {
-                                System.out.println("restarting processor\t id : " + crashed.getKey() + "\t stagePos: "
-                                        + crashed.getValue().getKey() + " : " + crashed.getValue().getValue());
-                                if(crashed.getValue().getValue().equals("stateless")){
-                                    CompletableFuture.runAsync(new AtomicStage(lst_stage_props.get(crashed.getValue().getKey()), crashed.getKey(),
-                                            stages.get(crashed.getValue().getKey()), 0));
-                                        mapc.remove(crashed.getKey(),crashed.getValue());
-                                        dbc.commit();
+                                if (crashed.getValue().getValue().equals("stateless")) {
+                                    int id = crashed.getKey();
+                                    int pos = crashed.getValue().getKey();
+                                    System.out.println("removing reference from crashedThreads");
+                                    System.out.println("restarting processor\t id : " + id + "\t stagePos: "
+                                            + pos);
+                                    CompletableFuture.runAsync(new AtomicStage(lst_stage_props.get(pos-1), id,
+                                            stages.get(pos-1), 0),Executors.newFixedThreadPool(1));
+                                    mapc.remove(id, crashed.getValue());
+                                    System.out.println("main thread : crashed thread served");
+                                    break;
 
-                                }else{
+                                } else {
                                     System.out.println("there is a queue of failed processes, scrolling");
                                 }
 
                             }
                             dbc.close();
+                            System.out.println("scrolled every entry of crashed threads");
                             return null;
                         });
 
@@ -329,7 +334,7 @@ public class TopologyBuilder {
                 }
 
             }
-
+            executor_stage.submit(new Source(propSource));
             executor_stage.submit(new Sink(propSink));
 
             executor_stage.shutdown();
