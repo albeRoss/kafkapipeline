@@ -17,15 +17,12 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.AuthorizationException;
 import org.apache.kafka.common.errors.OutOfOrderSequenceException;
 import org.apache.kafka.common.errors.ProducerFencedException;
-import org.apache.kafka.common.protocol.types.Field;
+
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.mapdb.DB;
 import org.mapdb.DBMaker;
-import org.mapdb.Serializer;
 import org.middleware.project.Processors.*;
-import org.middleware.project.functions.FlatMap;
-import org.middleware.project.functions.WindowedAggregate;
 
 public class AtomicStage implements Processor {
 
@@ -101,6 +98,8 @@ public class AtomicStage implements Processor {
         producerProps.put("enable.idempotence", true);
 
         this.producer = new KafkaProducer<>(producerProps);
+
+        System.out.println("stage inititialized");
     }
 
     @Override
@@ -135,11 +134,13 @@ public class AtomicStage implements Processor {
     public void run() {
         try {
             this.producer.initTransactions();
+            System.out.println("inittransaction");
 
 
             while (running) {
                 ConsumerRecords<String, String> records = this.consumer.poll(Duration.of(1, ChronoUnit.MINUTES));
                 this.producer.beginTransaction();
+                System.out.println("began");
 
                 for (final ConsumerRecord<String, String> record : records) {
                     System.out.println("[GROUP : " + group + " ] " + "[" + inTopic + "] " +
@@ -208,7 +209,7 @@ public class AtomicStage implements Processor {
 
         mapc.put(id, new Pair<>(pos,"stateless"));
         dbc.close();
-        producer.abortTransaction();
+        //producer.abortTransaction();
         consumer.close();
         producer.close();
         running = false;

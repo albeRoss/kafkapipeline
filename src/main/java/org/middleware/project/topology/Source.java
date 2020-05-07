@@ -70,7 +70,7 @@ public class Source implements Runnable {
                 final String topic = topics.get(r.nextInt(topics.size()));
                 producer.beginTransaction();
                 final String key = "Key" + r.nextInt(5);
-                final String value = phrase.get(i);
+                final String value = alpha.get(i);
 
                 System.out.println("[SOURCE] Topic : " + topic + "\t" + //
                         "Key: " + key + "\t" + //

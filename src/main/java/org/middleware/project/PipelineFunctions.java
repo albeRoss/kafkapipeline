@@ -34,7 +34,7 @@ public class PipelineFunctions {
                 result.put(key, Arrays.asList("A","msg"));
                 return result;
             })
-            , new WindowedAggregateProcessor((String key, List<String> values) ->{
+            , */new WindowedAggregateProcessor((String key, List<String> values) ->{
                 String res = "";
                 for(String v: values) {
                     res = res.concat(v);
@@ -43,8 +43,8 @@ public class PipelineFunctions {
                 res_aggr.put(key,res);
                 return res_aggr;
             },3,1,1) // NB YOU MUST PUT THE RIGHT POSITION: pipelineLength <= stagePos >=1
-            , new FilterProcessor((String k, String v) -> k.hashCode() % 2 == 1)
-            ,*/new FlatMapProcessor((String key, String value) -> {
+            /*, new FilterProcessor((String k, String v) -> k.hashCode() % 2 == 1)
+            ,new FlatMapProcessor((String key, String value) -> {
                 HashMap<String, List<String>> result = new HashMap<>();
                 List<String> flatten = new ArrayList<>();
                 for (int i = 0; i < value.length(); i++) {
@@ -52,7 +52,7 @@ public class PipelineFunctions {
                 }
                 result.put(key,flatten);
                 return result;
-            })
+            })*/
     )
             , "pipeline1");
 

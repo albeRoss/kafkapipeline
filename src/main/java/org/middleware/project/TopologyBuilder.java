@@ -18,6 +18,7 @@ import org.middleware.project.utils.Bash_runner;
 
 public class TopologyBuilder {
 
+    private static boolean isLocal = false;
     private static short replication_factor;
     private static Future<?> future_obj;
 
@@ -40,6 +41,7 @@ public class TopologyBuilder {
     }
 
     private static final void err() {
+        System.out.println("exiting");
         System.exit(1);
     }
 
@@ -55,7 +57,9 @@ public class TopologyBuilder {
 
         props.put("inTopic", "topic_" + pos);
         props.put("outTopic", "topic_" + outTopic_pos);
-        props.put("bootstrap.servers", global_prop.getProperty("bootstrap.servers"));
+        if(isLocal) props.put("bootstrap.servers", "localhost:9092");
+        else props.put("bootstrap.servers", global_prop.getProperty("bootstrap.servers")); //fixme public ip
+
         props.put("group.id", group);
         props.put("key.deserializer", StringDeserializer.class.getName());
         props.put("value.deserializer", StringDeserializer.class.getName());
@@ -73,7 +77,10 @@ public class TopologyBuilder {
         Properties props = new Properties();
         Properties global_prop = this.loadEnvProperties("config.properties");
         props.put("outTopic", "topic_" + 1);
-        props.put("bootstrap.servers", global_prop.getProperty("bootstrap.servers"));
+
+        if(isLocal) props.put("bootstrap.servers", "localhost:9092");
+        else props.put("bootstrap.servers", global_prop.getProperty("bootstrap.servers")); //FIXME public ip
+
         props.put("key.deserializer", StringDeserializer.class.getName());
         props.put("value.deserializer", StringDeserializer.class.getName());
         props.put("transactionId", "source_transactional_id");
@@ -85,7 +92,9 @@ public class TopologyBuilder {
 
 
     private void generate_server_properties(int num_brokers) {
-        String path = System.getProperty("user.dir") + "/../kafka_2.12-2.3.1/config/";
+        String path = System.getProperty("user.dir")+"/";
+
+        if(isLocal) path = System.getProperty("user.dir") + "/../kafka_2.12-2.3.1/config/";
 
         for (int i = 0; i < num_brokers; i++) {
             File f = new File(path + "server" + i + ".properties");
@@ -94,9 +103,19 @@ public class TopologyBuilder {
                 //Properties prop = new Properties();
                 // set the properties value
                 Properties prop_default = this.loadEnvProperties("server.properties");
-                prop_default.setProperty("listeners", "PLAINTEXT://:909" + (2 + (i * 2)));
-                //prop_default.setProperty("advertised.listeners", "PLAINTEXT://909" + (i*2));
-                prop_default.setProperty("log.dirs", "/tmp/kafka-logs" + i);
+
+                if(isLocal){
+                    prop_default.setProperty("listeners", "PLAINTEXT://:909" + (2 + (i * 2)));
+
+                }else{
+                    prop_default.setProperty("listeners", "PLAINTEXT://"+loadEnvProperties("adminClient.properties")
+                            .getProperty("bootstrap.servers")+":909" + (2 + (i * 2))); //FIXME add private hostname from admin client properties
+                    prop_default.setProperty("advertised.listeners",
+                            "PLAINTEXT://"+loadEnvProperties("config.properties").getProperty("bootstrap.servers")); //FIXME add private hostname from admin client properties
+
+                }
+                if(isLocal) prop_default.setProperty("log.dirs", "/tmp/kafka-logs" + i);
+                else prop_default.setProperty("log.dirs", "/tmp/kafka-logs" + i);
                 // save properties to project kafka /config folder
                 prop_default.store(output, null);
 
@@ -133,8 +152,10 @@ public class TopologyBuilder {
     }
 
     private void generate_sh(int num_brokers, final ArrayList<Integer> partitions_array) {
+        String sh_path = System.getProperty("user.dir")+ "/start_kafka_cluster.sh";
 
-        String sh_path = System.getProperty("user.dir") + "/../kafka_2.12-2.3.1/start_kafka_cluster.sh";
+        if(isLocal) sh_path = System.getProperty("user.dir") + "/../kafka_2.12-2.3.1/start_kafka_cluster.sh";
+
         File script = new File(sh_path);
         if (script.exists()) {
             script.delete();
@@ -149,19 +170,34 @@ public class TopologyBuilder {
                 "./bin/zookeeper-server-start.sh config/zookeeper.properties &\n");
         for (int i = 0; i < num_brokers; i++) {
             TopologyBuilder.appendUsingPrintWriter(sh_path,
-                    "./bin/kafka-server-start.sh config/server" + i + ".properties &\n");
+                    "KAFKA_HEAP_OPTS=\"-Xmx512M -Xms512M\" ./bin/kafka-server-start.sh config/server" + i + ".properties &\n");
         }
 
         // generate topics:
-        for (int i = 0; i < partitions_array.size(); i++) {
-            TopologyBuilder.appendUsingPrintWriter(sh_path,
-                    "./bin/kafka-topics.sh " +
-                            "--create " +
-                            "--bootstrap-server localhost:9092 " +
-                            "--replication-factor " + replication_factor + " " +
-                            "--partitions " + partitions_array.get(i).toString() + " " +
-                            "--topic topic_" + (i + 1) + " &\n");
+        if(isLocal){
+            for (int i = 0; i < partitions_array.size(); i++) {
+                TopologyBuilder.appendUsingPrintWriter(sh_path,
+                        "./bin/kafka-topics.sh " +
+                                "--create " +
+                                "--bootstrap-server localhost:9092 " +
+                                "--replication-factor " + replication_factor + " " +
+                                "--partitions " + partitions_array.get(i).toString() + " " +
+                                "--topic topic_" + (i + 1) + " &\n");
+            }
+
+        }else{
+            for (int i = 0; i < partitions_array.size(); i++) {
+                TopologyBuilder.appendUsingPrintWriter(sh_path,
+                        "./bin/kafka-topics.sh " +
+                                "--create " +
+                                "--bootstrap-server "+loadEnvProperties("adminClient.properties")
+                                .getProperty("bootstrap.servers").toString()+":9092 " + //fixme add private hostname retrieved from adminClient properties
+                                "--replication-factor " + replication_factor + " " +
+                                "--partitions " + partitions_array.get(i).toString() + " " +
+                                "--topic topic_" + (i + 1) + " &\n");
+            }
         }
+
 
         System.out.println("topology deployment sh generated");
     }
@@ -218,11 +254,26 @@ public class TopologyBuilder {
         // here the number of broker is determined by the biggest consumer group in the pipeline
         topologyBuilder.generate_server_properties(final_cluster_size);
 
-        // create .sh file
+        //once done transfer this files to the server
+
+        // generate .sh file
         topologyBuilder.generate_sh(final_cluster_size, topic_partitions);
 
+        //once done transfer this file to the server and wait for client to give continue
+
+        System.out.println("transfer properties and .sh to server then launch it. Press c if you want to continue x to exit");
+        Scanner input = new Scanner(System.in);
+        String x = input.nextLine();
+        if(x.equals("x")) err();
+        else if (x.equals("c")) {}
+            else {
+            System.out.println("wrong typing retry");
+            err();
+        }
+
+        //fixme isLocal check else do not launch
         // launch script deploy cluster and create topics
-        topologyBuilder.start_kafka_cluster();
+        if(isLocal) topologyBuilder.start_kafka_cluster();
 
         //build source
         Properties propSource = topologyBuilder.build_source();
@@ -350,7 +401,10 @@ public class TopologyBuilder {
         Properties props = new Properties();
         Properties global_prop = this.loadEnvProperties("config.properties");
         props.put("inTopic", "topic_" + (pipelineLength + 1));
-        props.put("bootstrap.servers", global_prop.getProperty("bootstrap.servers"));
+
+        if(isLocal) props.put("bootstrap.servers", "localhost:9092");
+        else props.put("bootstrap.servers", global_prop.getProperty("bootstrap.servers"));
+
         props.put("key.deserializer", StringDeserializer.class.getName());
         props.put("value.deserializer", StringDeserializer.class.getName());
         System.out.println("Sink configured");

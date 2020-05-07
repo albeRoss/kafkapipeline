@@ -82,7 +82,7 @@ public class StatefulAtomicStage extends AtomicStage {
 
         mapc.put(id, new Pair<>(pos,"stateful"));
         dbc.close();
-        producer.abortTransaction();
+        //producer.abortTransaction();
         consumer.close();
         producer.close();
         running = false;
