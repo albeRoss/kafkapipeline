@@ -18,7 +18,7 @@ import org.middleware.project.utils.Bash_runner;
 
 public class TopologyBuilder {
 
-    private static boolean isLocal = false;
+    private static boolean isLocal = true;
     private static short replication_factor;
     private static Future<?> future_obj;
 
@@ -52,6 +52,7 @@ public class TopologyBuilder {
         Properties props = new Properties();
         Properties global_prop = this.loadEnvProperties("config.properties");
         String stage_processors_str = global_prop.getProperty("processors.at." + (pos));
+        assert stage_processors_str != null;
         int stage_processors = Integer.parseInt(stage_processors_str);
         // String function_type = global_prop.getProperty("stage.at." + pos);
 
@@ -79,7 +80,7 @@ public class TopologyBuilder {
         props.put("outTopic", "topic_" + 1);
 
         if(isLocal) props.put("bootstrap.servers", "localhost:9092");
-        else props.put("bootstrap.servers", global_prop.getProperty("bootstrap.servers")); //FIXME public ip
+        else props.put("bootstrap.servers", global_prop.getProperty("bootstrap.servers"));
 
         props.put("key.deserializer", StringDeserializer.class.getName());
         props.put("value.deserializer", StringDeserializer.class.getName());
@@ -109,9 +110,9 @@ public class TopologyBuilder {
 
                 }else{
                     prop_default.setProperty("listeners", "PLAINTEXT://"+loadEnvProperties("adminClient.properties")
-                            .getProperty("bootstrap.servers")+":909" + (2 + (i * 2))); //FIXME add private hostname from admin client properties
+                            .getProperty("bootstrap.servers")+":909" + (2 + (i * 2)));
                     prop_default.setProperty("advertised.listeners",
-                            "PLAINTEXT://"+loadEnvProperties("config.properties").getProperty("bootstrap.servers")); //FIXME add private hostname from admin client properties
+                            "PLAINTEXT://"+loadEnvProperties("config.properties").getProperty("bootstrap.servers"));
 
                 }
                 if(isLocal) prop_default.setProperty("log.dirs", "/tmp/kafka-logs" + i);
@@ -151,6 +152,26 @@ public class TopologyBuilder {
         }
     }
 
+
+    private void transferFiles(String pipelineLength, String server){
+        System.out.println("uploading configuration files to cloud..");
+        try {
+            String[] cmdArray = new String[3];
+            cmdArray[0] = "./transferFiles.sh";
+            cmdArray[1] = pipelineLength;
+            cmdArray[2] = server;
+            //File sh_path = new File(System.getProperty("user.dir")+"/../kafka_2.12-2.3.1/");
+            //Process chmod = Runtime.getRuntime().exec("chmod +x transferFiles.sh", null, sh_path);
+            //chmod.waitFor();
+            Process proc = Runtime.getRuntime().exec(cmdArray,null,null);
+            proc.waitFor();
+
+        } catch (IOException | InterruptedException e) {
+            e.printStackTrace();
+        }
+        System.out.println("Uploaded");
+    }
+
     private void generate_sh(int num_brokers, final ArrayList<Integer> partitions_array) {
         String sh_path = System.getProperty("user.dir")+ "/start_kafka_cluster.sh";
 
@@ -169,7 +190,9 @@ public class TopologyBuilder {
         TopologyBuilder.appendUsingPrintWriter(sh_path,
                 "./bin/zookeeper-server-start.sh config/zookeeper.properties &\n");
         for (int i = 0; i < num_brokers; i++) {
-            TopologyBuilder.appendUsingPrintWriter(sh_path,
+            if(isLocal)  TopologyBuilder.appendUsingPrintWriter(sh_path,
+                    "./bin/kafka-server-start.sh config/server" + i + ".properties &\n");
+            else TopologyBuilder.appendUsingPrintWriter(sh_path,
                     "KAFKA_HEAP_OPTS=\"-Xmx512M -Xms512M\" ./bin/kafka-server-start.sh config/server" + i + ".properties &\n");
         }
 
@@ -242,9 +265,9 @@ public class TopologyBuilder {
 
         //check replication factor to be consistent with cluster size
         if (replication_factor > final_cluster_size) {
-            System.out.println("Stop at configuration. Final cluster size calculated is less than replication factor.");
-            System.out.println("Either increase number of processors per stage or decrease replication factor.");
-            System.out.println("be aware that decreasing replication factor to less than 2 makes the cluster not reliable ");
+            System.out.println("Stop at configuration. Final cluster size calculated is less than replication factor.\n"+
+            "Either increase number of processors per stage or decrease replication factor.\n"+
+            "be aware that decreasing replication factor to less than 2 makes the cluster not reliable ");
             err();
         }
         System.out.println("total number of thread needed is: " + num_thread_pipeline);
@@ -254,14 +277,17 @@ public class TopologyBuilder {
         // here the number of broker is determined by the biggest consumer group in the pipeline
         topologyBuilder.generate_server_properties(final_cluster_size);
 
-        //once done transfer this files to the server
+        //once done, transfer this files to the server
+        if(!isLocal) topologyBuilder.transferFiles(prop.getProperty("pipeline.length"),topologyBuilder.loadEnvProperties("adminClient.properties")
+                .getProperty("serverDNs"));
+
 
         // generate .sh file
         topologyBuilder.generate_sh(final_cluster_size, topic_partitions);
 
-        //once done transfer this file to the server and wait for client to give continue
+        //once done wait for client to give continue
 
-        System.out.println("transfer properties and .sh to server then launch it. Press c if you want to continue x to exit");
+        System.out.println("properties and .sh uploaded to server, launch it in server if is not local. Press c if you want to continue x to exit");
         Scanner input = new Scanner(System.in);
         String x = input.nextLine();
         if(x.equals("x")) err();
@@ -272,6 +298,7 @@ public class TopologyBuilder {
         }
 
         //fixme isLocal check else do not launch
+
         // launch script deploy cluster and create topics
         if(isLocal) topologyBuilder.start_kafka_cluster();
 
@@ -295,9 +322,9 @@ public class TopologyBuilder {
         }
 
         //retrieve defined pipeline
-        PipelineFunctions pipelineFunctions = PipelineFunctions.pipeline;
+        PipelineFunctions pipelineFunctions = PipelineFunctions.pipeline_1;
 
-        if (PipelineFunctions.pipeline.getProcessors().size() != pipeline_length) {
+        if (PipelineFunctions.pipeline_1.getProcessors().size() != pipeline_length) {
             throw new IllegalArgumentException("user defined pipeline is inconsistent with pipeline_length in config.prop");
         }
         List<StageProcessor> stages = pipelineFunctions.getProcessors();
@@ -314,7 +341,7 @@ public class TopologyBuilder {
 
                         // here you can simulate a crash of a stateful stage
                         CompletableFuture.runAsync(new StatefulAtomicStage(lst_stage_props.get(j), i,
-                                stages.get(j), 4)).exceptionally(throwable -> {
+                                stages.get(j), 5),executor_stage).exceptionally(throwable -> {
                                     //here we handle restart of crashed processors
 
                             DB dbc = DBMaker.fileDB("crashedThreads.db").fileMmapEnableIfSupported().make();
@@ -330,7 +357,6 @@ public class TopologyBuilder {
                                     int pos = crashed.getValue().getKey();
                                     CompletableFuture.runAsync(new StatefulAtomicStage(lst_stage_props.get(pos-1), id,
                                             stages.get(pos-1), 0),Executors.newFixedThreadPool(1));
-                                    //System.out.println("continuing on main thread");
                                     mapc.remove(crashed.getKey(), crashed.getValue());
 
                                 } else {
@@ -347,7 +373,7 @@ public class TopologyBuilder {
                     for (int i = 0; i < processors; i++) {
                         // here you can simulate a crash of a stateless stage
                         CompletableFuture.runAsync(new AtomicStage(lst_stage_props.get(j), i, stages.get(j),
-                                6)).exceptionally(throwable -> {
+                                0),executor_stage).exceptionally(throwable -> {
                             //here we handle restart of crashed processors
                             DB dbc = DBMaker.fileDB("crashedThreads.db").fileMmapEnableIfSupported().make();
                             System.out.println("stateless processor restart");

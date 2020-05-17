@@ -22,6 +22,7 @@ import org.mapdb.HTreeMap;
 import org.mapdb.Serializer;
 import org.middleware.project.Processors.StageProcessor;
 import org.middleware.project.Processors.WindowedAggregateProcessor;
+import org.middleware.project.utils.ConsoleColors;
 
 
 import java.time.Duration;
@@ -34,6 +35,7 @@ public class StatefulAtomicStage extends AtomicStage {
     private TopicPartition partition;
     private WindowedAggregateProcessor winStageProcessor;
     private int simulateCrash;
+    private String console;
 
     public StatefulAtomicStage(Properties properties, int id, StageProcessor stageProcessor, int simulateCrash) {
         if(simulateCrash == 0) this.simulateCrash = Integer.MAX_VALUE;
@@ -47,7 +49,8 @@ public class StatefulAtomicStage extends AtomicStage {
         this.stage_function = stageProcessor.getClass().getSimpleName();
         this.id = id;
         running = true;
-        System.out.println("[ ATOMICSTAGE : "+this.stage_function+" : "+this.id+" ]" +"\t group = " + group +"\t inTopic = " + inTopic
+        this.console = ConsoleColors.YELLOW_BRIGHT+"[ "+this.stage_function.toUpperCase()+" : "+this.id+"\t GROUP : " + group+" ] ";
+        System.out.println(console+"\t inTopic = " + inTopic
                 +"\t outTopic = " + outTopic+"\t boostrapServers = " + boostrapServers);
 
         this.stageProcessor = (WindowedAggregateProcessor) stageProcessor;
@@ -86,7 +89,7 @@ public class StatefulAtomicStage extends AtomicStage {
         consumer.close();
         producer.close();
         running = false;
-        System.out.println("failure!");
+        System.out.println(console+"failure!");
         throw new RuntimeException("[failure] : "+ this.stageProcessor.getClass().getSimpleName());
 
     }
@@ -150,7 +153,7 @@ public class StatefulAtomicStage extends AtomicStage {
         this.producer = new KafkaProducer<>(producerProps);
         db.commit();
         db.close();
-        System.out.println("Stateful processor initialized");
+        System.out.println(console+"Stateful processor initialized");
 
     }
 
@@ -170,7 +173,7 @@ public class StatefulAtomicStage extends AtomicStage {
                             if(e != null) {
                                 e.printStackTrace();
                             } else {
-                                System.out.println("The offset of the record we just sent is: " + metadata.offset());
+                                System.out.println(console+"The offset of the record we just sent is: " + metadata.offset());
                             }
                         }
                     });
@@ -195,15 +198,15 @@ public class StatefulAtomicStage extends AtomicStage {
 
             long nextOffsetTobeFetched = (long) consumer.endOffsets(Collections.singleton(partition)).values().toArray()[0];
             long lastOffsetConsumed = nextOffsetTobeFetched-2;
-            System.out.println("last kafka fetched offset was: "+lastOffsetConsumed);
+            System.out.println(console+"last kafka fetched offset was: "+lastOffsetConsumed);
 
             //retrieve the last committed kafka offset of intopic and partition during transaction
             long kafkaOffset = consumer.committed(partition).offset();
-            System.out.println("last kafka committed offset is :"+(kafkaOffset-1));
+            System.out.println(console+"last kafka committed offset is :"+(kafkaOffset-1));
             //if necessary rollback
             if((kafkaOffset > lastOffsetConsumed) && (lastOffsetConsumed > lastLocalConsumedOffset)){
 
-                System.out.println("Consumer last committed offset is: "+ kafkaOffset +
+                System.out.println(console+"Consumer last committed offset is: "+ kafkaOffset +
                         " but last consumed Offset is: "+ lastOffsetConsumed+
                         "\n.We should poll one record to sync state, without forwarding the record ");
 
@@ -243,11 +246,10 @@ public class StatefulAtomicStage extends AtomicStage {
 
                 // max.poll.records is set to 1
                 ConsumerRecords<String, String> records = this.consumer.poll(Duration.of(1, ChronoUnit.MINUTES));
-                this.producer.beginTransaction();
+                this.producer.beginTransaction(); // request to the coordinator and await response
 
                 for (final ConsumerRecord<String, String> record : records) {
-                    System.out.println("[GROUP : " + group + " ] " + "[" + inTopic + "] " +
-                            "[FORWARDER : " + id + " ] : " +
+                    System.out.println(console +
                             "Partition: " + record.partition() + "\t" + //
                             "Offset: " + record.offset() + "\t" + //
                             "Key: " + record.key() + "\t" + //
@@ -287,7 +289,7 @@ public class StatefulAtomicStage extends AtomicStage {
                 //TRY CRASH
 
                 this.producer.sendOffsetsToTransaction(map, group);
-                this.producer.commitTransaction(); //  the offsets and the output records will be committed as an atomic uni
+                this.producer.commitTransaction(); //  the offsets and the output records will be committed as an atomic unit
 
                 //TRY CRASH
 
@@ -302,20 +304,20 @@ public class StatefulAtomicStage extends AtomicStage {
             this.consumer.close();
             this.producer.close();
         }catch (InterruptedException e) {
-            System.out.println("AtomicStatefulStageinterrupted:  possible rollback needed");
+            System.out.println(console+"AtomicStatefulStageinterrupted:  possible rollback needed");
             //this is needed for interruptions occurred before commit.
             // for after commit interruption: the rollback is handled at restart (first part of run)
             db.rollback();
             e.printStackTrace();
         } catch (ProducerFencedException | OutOfOrderSequenceException | AuthorizationException e) {
             // We can't recover from these exceptions, so our only option is to close the producer and exit.
-            System.out.println("    We can't recover from these exceptions, so our only option is to close the producer and exit.");
+            System.out.println(console+"We can't recover from these exceptions, so our only option is to close the producer and exit.");
             producer.close();
             consumer.close();
             running = false;
         } catch (KafkaException e ) {
             // For all other exceptions, just abort the transaction and try again.
-            System.out.println("     aborts the transaction. Try again.");
+            System.out.println(console+"aborts the transaction. Try again.");
             producer.abortTransaction();
             // if it aborts
             db.rollback();

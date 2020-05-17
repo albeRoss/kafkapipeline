@@ -20,10 +20,44 @@ public class PipelineFunctions {
     }
 
 
-
-    public static final PipelineFunctions pipeline = new PipelineFunctions(Arrays.asList(
+    public static final PipelineFunctions pipeline_1 = new PipelineFunctions(Arrays.asList(
 
             //new FilterProcessor((String k, String v) -> k.hashCode() % 2 == 1)
+
+           /* new MapProcessor((String key, String value)->{
+                HashMap<String,String> result = new HashMap<>();
+                result.put(key,value.toUpperCase());
+                return result;
+            }), new FlatMapProcessor((String key, String value) -> {
+                HashMap<String, List<String>> result = new HashMap<>();
+                result.put(key, Arrays.asList("A","msg"));
+                return result;
+            })*/
+           new WindowedAggregateProcessor((String key, List<String> values) -> {
+                String res = "";
+                for (String v : values) {
+                    res = res.concat(v);
+                }
+                HashMap<String, String> res_aggr = new HashMap<>();
+                res_aggr.put(key, res);
+                return res_aggr;
+            }, 3, 1, 1)  // NB YOU MUST PUT THE RIGHT POSITION: pipelineLength <= stagePos >=1
+            /*, new FilterProcessor((String k, String v) -> k.hashCode() % 2 == 1)
+             , new FlatMapProcessor((String key, String value) -> {
+                HashMap<String, List<String>> result = new HashMap<>();
+                List<String> flatten = new ArrayList<>();
+                for (int i = 0; i < value.length(); i++) {
+                    flatten.add(value.substring(i, i + 1));
+                }
+                result.put(key, flatten);
+                return result;
+            })*/
+    )
+            , "pipeline1");
+
+    public static final PipelineFunctions pipeline_2 = new PipelineFunctions(Arrays.asList(
+
+            new FilterProcessor((String k, String v) -> k.hashCode() % 2 == 1)
 
             /*,new MapProcessor((String key, String value)->{
                 HashMap<String,String> result = new HashMap<>();
@@ -34,25 +68,25 @@ public class PipelineFunctions {
                 result.put(key, Arrays.asList("A","msg"));
                 return result;
             })
-            , */new WindowedAggregateProcessor((String key, List<String> values) ->{
+           */, new WindowedAggregateProcessor((String key, List<String> values) -> {
                 String res = "";
-                for(String v: values) {
+                for (String v : values) {
                     res = res.concat(v);
                 }
-                HashMap <String, String> res_aggr = new HashMap<>();
-                res_aggr.put(key,res);
+                HashMap<String, String> res_aggr = new HashMap<>();
+                res_aggr.put(key, res);
                 return res_aggr;
-            },3,1,1) // NB YOU MUST PUT THE RIGHT POSITION: pipelineLength <= stagePos >=1
-            /*, new FilterProcessor((String k, String v) -> k.hashCode() % 2 == 1)
-            ,new FlatMapProcessor((String key, String value) -> {
+            }, 3, 1, 2)  // NB YOU MUST PUT THE RIGHT POSITION: pipelineLength <= stagePos >=1
+            //, new FilterProcessor((String k, String v) -> k.hashCode() % 2 == 1)
+            , new FlatMapProcessor((String key, String value) -> {
                 HashMap<String, List<String>> result = new HashMap<>();
                 List<String> flatten = new ArrayList<>();
                 for (int i = 0; i < value.length(); i++) {
-                    flatten.add(value.substring(i,i+1));
+                    flatten.add(value.substring(i, i + 1));
                 }
-                result.put(key,flatten);
+                result.put(key, flatten);
                 return result;
-            })*/
+            })
     )
             , "pipeline1");
 

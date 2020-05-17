@@ -1,5 +1,6 @@
 package org.middleware.project;
 
+import com.sun.prism.paint.Color;
 import org.mapdb.DB;
 import org.mapdb.DBMaker;
 import org.mapdb.HTreeMap;
@@ -8,6 +9,7 @@ import org.middleware.project.Processors.StageProcessor;
 import org.middleware.project.Processors.WindowedAggregateProcessor;
 import org.middleware.project.functions.WindowedAggregate;
 import org.middleware.project.topology.AtomicStage;
+import org.middleware.project.utils.ConsoleColors;
 
 
 import java.io.*;
@@ -231,7 +233,7 @@ public class App
                     }
                 }
         };*/
-        ExecutorService executor = Executors.newFixedThreadPool(5);
+       /* ExecutorService executor = Executors.newFixedThreadPool(5);
         //Future obj = executor.submit(runnableTask);
 
         Runnable runnable = () -> {
@@ -264,7 +266,7 @@ public class App
             public void run() {
                 CompletableFuture.runAsync(runnable);
             }
-        });
+        });*/
 
 
 
@@ -295,6 +297,11 @@ public class App
         db2.close();
         //System.out.println(windows);
         System.out.println(map.values());*/
+
+        String console = ConsoleColors.GREEN;
+        System.out.println(console + "hello I'm console");
+        String consolesink  = ConsoleColors.YELLOW;
+        System.out.println(consolesink + "hello I'm console");
 
 
 

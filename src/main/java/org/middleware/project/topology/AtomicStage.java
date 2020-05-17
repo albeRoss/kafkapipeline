@@ -23,6 +23,7 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.mapdb.DB;
 import org.mapdb.DBMaker;
 import org.middleware.project.Processors.*;
+import org.middleware.project.utils.ConsoleColors;
 
 public class AtomicStage implements Processor {
 
@@ -43,6 +44,7 @@ public class AtomicStage implements Processor {
     protected  int id;
     protected int pos;
     private int simulateCrash;
+    private String console;
 
     public AtomicStage(Properties properties, int id, StageProcessor stageProcessor, int simulateCrash) {
         this.group = properties.getProperty("group.id");
@@ -52,6 +54,20 @@ public class AtomicStage implements Processor {
         this.stageProcessor = stageProcessor;
         this.transactionId = "atomic_forwarder_" + properties.getProperty("group.id") + "_transactional_id_" + id;
         this.stage_function = stageProcessor.getClass().getSimpleName();
+
+        switch (this.stage_function) {
+            case "MapProcessor":
+                this.console = ConsoleColors.CYAN_BRIGHT+"[ "+this.stage_function.toUpperCase()+" : "+this.id+"\t GROUP : " + group+" ] ";
+                break;
+            case "FlatMapProcessor":
+                this.console = ConsoleColors.BLUE+"[ "+this.stage_function.toUpperCase()+" : "+this.id+"\t GROUP : " + group+" ] ";
+                break;
+            case "FilterProcessor":
+                this.console = ConsoleColors.PURPLE_BRIGHT+"[ "+this.stage_function.toUpperCase()+" : "+this.id+"\t GROUP : " + group+" ] ";
+                break;
+        }
+
+
         this.id = id;
         if(simulateCrash == 0) this.simulateCrash = Integer.MAX_VALUE;
         else {
@@ -63,7 +79,7 @@ public class AtomicStage implements Processor {
         this.pos = Integer.parseInt(group.substring(6));
 
         running = true;
-        System.out.println("[ ATOMICSTAGE : "+this.stage_function+" ]" +"\t group = " + group +"\t inTopic = " + inTopic
+        System.out.println(console+"\t inTopic = " + inTopic
                 +"\t outTopic = " + outTopic+"\t boostrapServers = " + boostrapServers);
         //System.out.println("\t transactionId = " + transactionId);
 
@@ -99,7 +115,7 @@ public class AtomicStage implements Processor {
 
         this.producer = new KafkaProducer<>(producerProps);
 
-        System.out.println("stage inititialized");
+        System.out.println(console+"stage inititialized");
     }
 
     @Override
@@ -133,18 +149,18 @@ public class AtomicStage implements Processor {
     @Override
     public void run() {
         try {
+            //System.out.println("[ ATOMIC STAGE : "+this.stage_function+" : "+this.id+" ] --> runs");
             this.producer.initTransactions();
-            System.out.println("inittransaction");
+            //System.out.println("[ ATOMIC STAGE : "+this.stage_function+" : "+this.id+" ] --> init transaction");
 
 
             while (running) {
                 ConsumerRecords<String, String> records = this.consumer.poll(Duration.of(1, ChronoUnit.MINUTES));
                 this.producer.beginTransaction();
-                System.out.println("began");
+                //System.out.println("[ ATOMIC STAGE : "+this.stage_function+" ] --> began transaction");
 
                 for (final ConsumerRecord<String, String> record : records) {
-                    System.out.println("[GROUP : " + group + " ] " + "[" + inTopic + "] " +
-                            "[FORWARDER : " + id + " ] : " +
+                    System.out.println(console +
                             "Partition: " + record.partition() + "\t" + //
                             "Offset: " + record.offset() + "\t" + //
                             "Key: " + record.key() + "\t" + //
@@ -164,16 +180,19 @@ public class AtomicStage implements Processor {
                     map.put(partition, new OffsetAndMetadata(lastOffset + 1));
                 }
 
-                this.producer.sendOffsetsToTransaction(map, group);
-                this.producer.commitTransaction();
-
-
                 if (simulateCrash > 0) {
                     simulateCrash--;
+                    System.out.println(console+"crash count decreased to : "+simulateCrash);
                 } else {
                     crash();
                 }
                 Thread.sleep(100);
+
+
+                this.producer.sendOffsetsToTransaction(map, group);
+                this.producer.commitTransaction();
+
+
 
 
             }
@@ -181,18 +200,17 @@ public class AtomicStage implements Processor {
             this.producer.close();
 
         }catch (InterruptedException e) {
-                System.out.println("AtomicStatelessStageinterrupted");
-
+                System.out.println(console+"AtomicStateless Stage interrupted");
                 e.printStackTrace();
         } catch (ProducerFencedException | OutOfOrderSequenceException | AuthorizationException e) {
             // We can't recover from these exceptions, so our only option is to close the producer and exit.
-            System.out.println("    We can't recover from these exceptions, so our only option is to close the producer and exit.");
+            System.out.println(console+"We can't recover from these exceptions, so our only option is to close the producer and exit.");
             producer.close();
             consumer.close();
             running = false;
         } catch (KafkaException e) {
             // For all other exceptions, just abort the transaction and try again.
-            System.out.println("     aborts the transaction. Try again.");
+            System.out.println(console+"aborts the transaction. Try again.");
             producer.abortTransaction();
             // retry comes for free
         }
@@ -213,7 +231,7 @@ public class AtomicStage implements Processor {
         consumer.close();
         producer.close();
         running = false;
-        System.out.println("failure!");
+        System.out.println(console+"failure!");
         throw new RuntimeException("[failure] : "+ this.stageProcessor.getClass().getSimpleName());
 
     }

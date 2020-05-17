@@ -13,6 +13,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.KafkaException;
 import org.apache.kafka.common.serialization.StringDeserializer;
+import org.middleware.project.utils.ConsoleColors;
 
 public class Sink implements Runnable {
 
@@ -22,6 +23,7 @@ public class Sink implements Runnable {
     private String boostrapServers;
     private volatile boolean running;
     private KafkaConsumer<String, String> consumer;
+    private String console = ConsoleColors.WHITE_UNDERLINED + "[SINK] \t";
 
     public Sink(Properties properties) {
 
@@ -46,12 +48,12 @@ public class Sink implements Runnable {
         this.consumer = new KafkaConsumer<>(consumerProps);
         this.consumer.subscribe(Collections.singleton(inTopic));
 
-        System.out.println("Sink initialized");
+        System.out.println(console+"Sink initialized");
     }
 
 
     private final void writeMessage(String record) {
-        try (FileWriter writer = new FileWriter(new File(".sink.txt"), true)) {
+        try (FileWriter writer = new FileWriter(new File("sink.txt"), true)) {
 
             StringBuilder sb = new StringBuilder();
 
@@ -86,7 +88,7 @@ public class Sink implements Runnable {
                                 "Key: " + record.key() + ".\t" + //
                                 "Value: " + record.value();
 
-                        System.out.println("SINK: " + ".\t" + //
+                        System.out.println(console+"SINK: " + ".\t" + //
                                 sinkRecord);
 
                         // There is also an asynchronous version that invokes a callback
@@ -102,9 +104,9 @@ public class Sink implements Runnable {
                 }
 
         } catch (KafkaException e) {
-            System.out.println("Sink failed. Try again.");
+            System.out.println(console+"Sink failed. Try again.");
         }
-        System.out.println("sink closing");
+        System.out.println(console+"sink closing");
         consumer.close();
 
 

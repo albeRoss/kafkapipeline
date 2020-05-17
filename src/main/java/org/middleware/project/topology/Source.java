@@ -10,7 +10,7 @@ import org.apache.kafka.common.errors.AuthorizationException;
 import org.apache.kafka.common.errors.OutOfOrderSequenceException;
 import org.apache.kafka.common.errors.ProducerFencedException;
 import org.apache.kafka.common.serialization.StringSerializer;
-import org.middleware.project.Processors.Processor;
+import org.middleware.project.utils.ConsoleColors;
 
 public class Source implements Runnable {
 
@@ -21,6 +21,7 @@ public class Source implements Runnable {
     private final String transactionId;
     private volatile boolean running;
     private KafkaProducer<String, String> producer;
+    private String console = ConsoleColors.WHITE_UNDERLINED+ "[SOURCE] \t";
 
     public Source(Properties properties) {
 
@@ -29,7 +30,7 @@ public class Source implements Runnable {
         this.transactionId = properties.getProperty("transactionId");
 
         running = true;
-        System.out.println("[SOURCE] \t"+"outTopic = " + outTopic+"\ttransactionId = " + transactionId+
+        System.out.println(console+ "outTopic = " + outTopic+"\ttransactionId = " + transactionId+
                 "\tboostrapServers = " + boostrapServers);
         init();
 
@@ -46,7 +47,7 @@ public class Source implements Runnable {
         props.put("transactional.id", transactionId);
         this.producer = new KafkaProducer<>(props);
 
-        System.out.println("Source initialized");
+        System.out.println(console+"Source initialized");
     }
 
     @Override
@@ -72,7 +73,7 @@ public class Source implements Runnable {
                 final String key = "Key" + r.nextInt(5);
                 final String value = alpha.get(i);
 
-                System.out.println("[SOURCE] Topic : " + topic + "\t" + //
+                System.out.println(console+" Topic : " + topic + "\t" + //
                         "Key: " + key + "\t" + //
                         "Value: " + value);
 
@@ -91,14 +92,14 @@ public class Source implements Runnable {
 
         } catch (ProducerFencedException | OutOfOrderSequenceException | AuthorizationException e) {
             // We can't recover from these exceptions, so our only option is to close the producer and exit.
-            System.out.println("We can't recover from these exceptions, so our only option is to close the producer and exit.");
+            System.out.println(console+"We can't recover from these exceptions, so our only option is to close the producer and exit.");
             producer.close();
         } catch (KafkaException e) {
             // For all other exceptions, just abort the transaction and try again.
-            System.out.println("producer aborts the transaction. Try again.");
+            System.out.println(console+"producer aborts the transaction. Try again.");
             producer.abortTransaction();
         }
-        System.out.println("source closing");
+        System.out.println(console+"source closing");
         producer.close();
 
 

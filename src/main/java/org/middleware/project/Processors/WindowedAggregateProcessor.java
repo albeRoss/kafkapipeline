@@ -46,7 +46,6 @@ public class WindowedAggregateProcessor extends StageProcessor{
                 oldSlidedValues.clear();
                 oldSlidedValues.put(key,oldValues); //save old values for possible revert
 
-
                 List<String> slidedWindow = new ArrayList<>(winValues.subList(winValues.size() - 1 - windowSize + slide, winValues.size()));
                 windows.put(key, slidedWindow); // Slide window
 

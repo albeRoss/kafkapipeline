@@ -75,7 +75,7 @@ public class ConsoleColors {
     public static final String WHITE_BACKGROUND_BRIGHT = "\033[0;107m";   // WHITE
 
     public static void main(String[] args) {
-        System.out.println(ConsoleColors.WHITE + "Ciao");
+        System.out.println(CYAN_BRIGHT+"cyan"+PURPLE_BRIGHT+"purple");
     }
 }
 
