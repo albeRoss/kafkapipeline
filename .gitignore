@@ -6,6 +6,8 @@
 
 /src/main/org/middleware/project/topology/AtomicStage.java
 
-/src/main/org/middleware/project/topology/StatelessAtomicStage.java
-
+src/*/StatelessAtomicStage.java
+src/**/App.java
+src/**/AtomicStage.java
+src/**/StatefulAtomicStage.java
 /src/main/org/middleware/project/topology/StatefulAtomicStage.java
