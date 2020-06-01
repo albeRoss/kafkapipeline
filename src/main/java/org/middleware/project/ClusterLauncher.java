@@ -121,7 +121,8 @@ public class ClusterLauncher {
 
     private void generate_server_folders(int num_brokers) {
         /**
-         * generate a folder for each server that contains server0.properties and only for the first server a script with
+         * generate a folder for each server that contains server0.properties and only for the first server a
+         * script with
          * that start broker and zookeeper and also generate the topics for the pipeline
          */
         String path = System.getProperty("user.dir") + "/";
@@ -241,7 +242,7 @@ public class ClusterLauncher {
 
         TopologyBuilder.appendUsingPrintWriter(sh_path,
                 "KAFKA_HEAP_OPTS=\"-Xmx512M -Xms512M\" ./bin/kafka-server-start.sh -daemon config/server0.properties &\n");
-        
+
         //create topics for the pipeline
         for (int i = 0; i < partitions.size(); i++) {
             TopologyBuilder.appendUsingPrintWriter(sh_create_topics,
@@ -526,12 +527,14 @@ public class ClusterLauncher {
     private void checks() {
 
         //check replication factor < number of servers
-        int replication_factor = Integer.parseInt(loadEnvProperties("config.properties").getProperty("replication.factor"));
+        int replication_factor = Integer.parseInt(loadEnvProperties("config.properties")
+                .getProperty("replication.factor"));
         try {
             int cluster_size = get_cluster_size();
 
             if (replication_factor > cluster_size) {
-                System.out.println("Stop at configuration. Final cluster size calculated is less than replication factor.\n" +
+                System.out.println("Stop at configuration. Final cluster size calculated is less than replication " +
+                        "factor.\n" +
                         "Either increase number of servers or decrease replication factor.\n" +
                         "be aware that decreasing replication factor to less than 2 makes the cluster not reliable ");
                 err();
@@ -551,8 +554,10 @@ public class ClusterLauncher {
                 int cores = Integer.parseInt(line);
                 int num_processors = get_number_of_processors();
                 if (cores < num_processors) {
-                    System.out.println("[WARNING] \t you selected a cluster with " + cores + " total number of cores and " +
-                            +num_processors + " total number of processors. Select another configuration or continue and" +
+                    System.out.println("[WARNING] \t you selected a cluster with " + cores + " total number of cores " +
+                            "and " +
+                            +num_processors + " total number of processors. Select another configuration or continue" +
+                            " and" +
                             "take advantage of aws hyperthreading capabilities.");
                     System.out.println("Press c to continue, x to exit");
                 }
@@ -573,7 +578,8 @@ public class ClusterLauncher {
 
         ClusterLauncher clusterLauncher = new ClusterLauncher();
 
-        System.out.println("Do you want to launch new instances? Press s to skip, c to run the new instances x to exit");
+        System.out.println("Do you want to launch new instances? Press s to skip, c to run the new instances x to " +
+                "exit");
         Scanner input = new Scanner(System.in);
         String x = input.nextLine();
         if (x.equals("x")) err();
@@ -607,7 +613,6 @@ public class ClusterLauncher {
         clusterLauncher.create_topics();
 
         clusterLauncher.launch_processors();
-
 
     }
 

@@ -45,11 +45,13 @@ public class WindowedAggregateProcessor extends StageProcessor{
             } else if (winValues.size() == windowSize) { // If the size is reached
                 winValues.add(value);
 
-                List<String> oldValues = new ArrayList<>(winValues.subList(0, winValues.size() - 1 - windowSize + slide));
+                List<String> oldValues = new ArrayList<>(winValues.subList(0, winValues.size() - 1 - windowSize
+                        + slide));
                 oldSlidedValues.clear();
                 oldSlidedValues.put(key,oldValues); //save old values for possible revert
 
-                List<String> slidedWindow = new ArrayList<>(winValues.subList(winValues.size() - 1 - windowSize + slide, winValues.size()));
+                List<String> slidedWindow = new ArrayList<>(winValues.subList(winValues.size() - 1 - windowSize
+                        + slide, winValues.size()));
                 windows.put(key, slidedWindow); // Slide window
 
             } else {

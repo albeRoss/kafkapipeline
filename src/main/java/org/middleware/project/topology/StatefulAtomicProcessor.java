@@ -53,7 +53,8 @@ public class StatefulAtomicProcessor extends StatelessAtomicProcessor {
         this.stage_function = stageProcessor.getClass().getSimpleName();
 
         running = true;
-        this.console = ConsoleColors.YELLOW_BRIGHT + "[ " + this.stage_function.toUpperCase() + " : " + this.id + "\t GROUP : " + group + " ] ";
+        this.console = ConsoleColors.YELLOW_BRIGHT + "[ " + this.stage_function.toUpperCase()
+                + " : " + this.id + "\t GROUP : " + group + " ] ";
         System.out.println(console + "\t inTopic = " + inTopic
                 + "\t outTopic = " + outTopic + "\t boostrapServers = " + boostrapServers);
 
@@ -77,7 +78,8 @@ public class StatefulAtomicProcessor extends StatelessAtomicProcessor {
     }
 
     private long getOffset(DB db) {
-        HTreeMap<Integer, Long> processedOffsetsMap = db.hashMap("processedOffsetsMap", Serializer.INTEGER, Serializer.LONG).createOrOpen();
+        HTreeMap<Integer, Long> processedOffsetsMap = db.hashMap("processedOffsetsMap",
+                Serializer.INTEGER, Serializer.LONG).createOrOpen();
         long res = processedOffsetsMap.get(this.id);
         return res;
     }
@@ -85,7 +87,8 @@ public class StatefulAtomicProcessor extends StatelessAtomicProcessor {
     private void crash() {
         System.out.println(console + "failure!");
         DB dbc = DBMaker.fileDB("crashedThreads.db").fileMmapEnableIfSupported().make();
-        ConcurrentMap<Integer, Pair<Integer, String>> mapc = dbc.hashMap("crashedThreads", Serializer.INTEGER, Serializer.JAVA).createOrOpen();
+        ConcurrentMap<Integer, Pair<Integer, String>> mapc = dbc.hashMap("crashedThreads",
+                Serializer.INTEGER, Serializer.JAVA).createOrOpen();
         System.out.println(console + "failure!");
         //we need the id of the processor and the stage position
 
@@ -182,12 +185,14 @@ public class StatefulAtomicProcessor extends StatelessAtomicProcessor {
                             if (e != null) {
                                 e.printStackTrace();
                             } else {
-                                System.out.println(console + "The offset of the record we just sent is: " + metadata.offset());
+                                System.out.println(console + "The offset of the record we just sent is: " +
+                                        metadata.offset());
                             }
                         }
                     });
                 } else {
-                    // if we need to recover last message do not send current record, save only and then set prerestart to false
+                    // if we need to recover last message do not send current record, save only and then set
+                    // prerestart to false
                     prerestart = false;
                 }
 
@@ -207,18 +212,24 @@ public class StatefulAtomicProcessor extends StatelessAtomicProcessor {
 
             /**
              * KAFKA DOC for ENDOFFSETS
-             * Get the last offset for the given partitions. The last offset of a partition is the offset of the upcoming message, i.e. the offset of the last available message + 1.
-             * Notice that this method may block indefinitely if the partition does not exist. This method does not change the current consumer position of the partitions.
+             * Get the last offset for the given partitions. The last offset of a partition is the offset of the
+             * upcoming message, i.e. the offset of the last available message + 1.
+             * Notice that this method may block indefinitely if the partition does not exist.
+             * This method does not change the current consumer position of the partitions.
              *
-             * When isolation.level=read_committed the last offset will be the Last Stable Offset (LSO). This is the offset of the first message with an open transaction. The LSO moves forward as transactions are completed
+             * When isolation.level=read_committed the last offset will be the Last Stable Offset (LSO).
+             * This is the offset of the first message with an open transaction. The LSO moves forward as transactions
+             * are completed
              */
-            long nextOffsetTobeFetched = (long) consumer.endOffsets(Collections.singleton(partition)).values().toArray()[0];
+            long nextOffsetTobeFetched = (long) consumer.endOffsets(Collections.singleton(partition)).values().
+                    toArray()[0];
             long lastOffsetConsumed = nextOffsetTobeFetched - 2;
             System.out.println(console + "last kafka fetched offset was: " + lastOffsetConsumed);
 
             /**
              * KAFKA DOC for COMMITTED
-             * Get the last committed offset for the given partition (whether the commit happened by this process or another). This offset will be used as the position for the consumer in the event of a failure.
+             * Get the last committed offset for the given partition (whether the commit happened by this process
+             * or another). This offset will be used as the position for the consumer in the event of a failure.
              * This call will block to do a remote call to get the latest committed offsets from the server.
              */
             //retrieve the last committed kafka offset of intopic and partition during transaction
@@ -310,7 +321,8 @@ public class StatefulAtomicProcessor extends StatelessAtomicProcessor {
                 //TRY CRASH
 
                 this.producer.sendOffsetsToTransaction(map, group);
-                this.producer.commitTransaction(); //  the offsets and the output records will be committed as an atomic unit
+                this.producer.commitTransaction(); //  the offsets and the output records will be committed as
+                // an atomic unit
 
                 //TRY CRASH
                 if (simulateCrash > 0 && crash.equals("between")) {
@@ -352,7 +364,8 @@ public class StatefulAtomicProcessor extends StatelessAtomicProcessor {
             e.printStackTrace();
         } catch (ProducerFencedException | OutOfOrderSequenceException | AuthorizationException e) {
             // We can't recover from these exceptions, so our only option is to close the producer and exit.
-            System.out.println(console + "We can't recover from these exceptions, so our only option is to close the producer and exit.");
+            System.out.println(console + "We can't recover from these exceptions, so our only option is to " +
+                    "close the producer and exit.");
             producer.close();
             consumer.close();
             running = false;
