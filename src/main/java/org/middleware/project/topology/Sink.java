@@ -1,9 +1,6 @@
 package org.middleware.project.topology;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.io.*;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -47,7 +44,8 @@ public class Sink implements Runnable {
 
         this.consumer = new KafkaConsumer<>(consumerProps);
         this.consumer.subscribe(Collections.singleton(inTopic));
-
+        File sinkFile = new File("sink.txt");
+        if(sinkFile.exists()) sinkFile.delete();
         System.out.println(console+"Sink initialized");
     }
 
@@ -79,9 +77,11 @@ public class Sink implements Runnable {
 
     @Override
     public void run() {
+        System.out.println("Sink Running");
             try {
                 while (running) {
                     final ConsumerRecords<String, String> records = consumer.poll(Duration.of(30, ChronoUnit.SECONDS));
+                    System.out.println("Sink polled msgs");
                     for (final ConsumerRecord<String, String> record : records) {
                         String sinkRecord = "Partition: " + record.partition() + ".\t" + //
                                 "Offset: " + record.offset() + ".\t" + //

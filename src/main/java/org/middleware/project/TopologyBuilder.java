@@ -18,16 +18,18 @@ import org.middleware.project.utils.Bash_runner;
 
 public class TopologyBuilder {
 
-    private static boolean isLocal = true;
-    private static short replication_factor;
-    private static Future<?> future_obj;
+    private static boolean isLocal = false;
 
-    private Properties loadEnvProperties(String fileName) {
+    public Properties loadEnvProperties(String fileName) {
+        /**
+         * utility function:
+         * loads properties from ./resources folder
+         * @param : relative path to .properties
+         */
         Properties prop = new Properties();
         try {
 
-            InputStream inputStream = TopologyBuilder.class.getClassLoader().getResourceAsStream(fileName);
-
+            InputStream inputStream = new FileInputStream("resources/"+fileName);
             if (inputStream != null) {
                 prop.load(inputStream);
             } else {
@@ -40,12 +42,16 @@ public class TopologyBuilder {
         return prop;
     }
 
-    private static final void err() {
-        System.out.println("exiting");
+   private static final void err() {
+       /**
+        * utiility function:
+        * exits
+        */
+       System.out.println("exiting");
         System.exit(1);
     }
 
-    private Properties build_stage(int pos) throws InterruptedException {
+    /*public Properties build_stage(int pos) {
 
         int outTopic_pos = pos + 1;
         String group = "group_" + pos;
@@ -70,20 +76,118 @@ public class TopologyBuilder {
         System.out.println("Stage [" + pos + "] created with " + stage_processors + " processors");
 
         return props;
+    }*/
+
+    public ArrayList<Properties> buildStage(int pos)  {
+
+        int outTopic_pos = pos + 1;
+
+        Properties global_prop = this.loadEnvProperties("config.properties");
+        String stage_processors_str = global_prop.getProperty("processors.at." + (pos));
+        String stage_function = global_prop.getProperty("function.at."+pos);
+        assert stage_function != null;
+        assert stage_processors_str != null;
+        int stage_processors = Integer.parseInt(stage_processors_str);
+        Random r = new Random();
+        int low = 4;
+        ArrayList<Properties> ls_properties = new ArrayList<>();
+        System.out.println("searching a match for:"+stage_function);
+        switch (stage_function){
+            case "flatmap":
+                for (int i = 0; i < stage_processors; i++) {
+                    Properties props = new Properties();
+                    props.put("simulateCrash",Integer.toString(0)); // change here to simulate crash
+                    props.put("id",Integer.toString(i));
+                    props.put("type","stateless");
+                    props.put("group.id", "group_" + pos);
+                    props.put("inTopic", "topic_" + pos);
+                    props.put("outTopic", "topic_" + outTopic_pos);
+                    props.put("function","flatmap");
+                    if (isLocal) props.put("bootstrap.servers", "localhost:9092");
+                    else props.put("bootstrap.servers", global_prop.getProperty("bootstrap.servers"));
+                    ls_properties.add(props);
+
+                }
+                break;
+            case "map":
+                for (int i = 0; i < stage_processors; i++) {
+                    Properties props = new Properties();
+                    if(i%2==0){ // set false not to simulate a crash
+                        props.put("simulateCrash",Integer.toString(r.nextInt(10-low) + low)); // change here to simulate crash
+
+                    }else props.put("simulateCrash",Integer.toString(0));
+                    props.put("id",Integer.toString(i));
+                    props.put("type","stateless");
+                    props.put("group.id", "group_" + pos);
+                    props.put("inTopic", "topic_" + pos);
+                    props.put("outTopic", "topic_" + outTopic_pos);
+                    props.put("function","map");
+                    if (isLocal) props.put("bootstrap.servers", "localhost:9092");
+                    else props.put("bootstrap.servers", global_prop.getProperty("bootstrap.servers"));
+                    ls_properties.add(props);
+
+                }
+                break;
+            case "filter":
+                for (int i = 0; i < stage_processors; i++) {
+                    Properties props = new Properties();
+                    if(false){ // set false not to simulate a crash
+                        props.put("simulateCrash",Integer.toString(r.nextInt(10-low) + low)); // change here to simulate crash
+
+                    }else props.put("simulateCrash",Integer.toString(0));
+                    props.put("id",Integer.toString(i));
+                    props.put("type","stateless");
+                    props.put("group.id", "group_" + pos);
+                    props.put("inTopic", "topic_" + pos);
+                    props.put("outTopic", "topic_" + outTopic_pos);
+                    props.put("function","filter");
+                    if (isLocal) props.put("bootstrap.servers", "localhost:9092");
+                    else props.put("bootstrap.servers", global_prop.getProperty("bootstrap.servers"));
+                    ls_properties.add(props);
+
+                }
+                break;
+            case "windowaggregate":
+                for (int i = 0; i < stage_processors; i++) {
+                    Properties props = new Properties();
+                    if(i%2==0){ // set false not to simulate a crash
+                        props.put("simulateCrash",Integer.toString(r.nextInt(10-low) + low)); // change here to simulate crash
+
+                    }else props.put("simulateCrash",Integer.toString(0));
+
+                    props.put("id",Integer.toString(i));
+                    props.put("crash","between"); // possible values: before | after | between
+                    props.put("type", "stateful");
+                    props.put("group.id", "group_" + pos);
+                    props.put("inTopic", "topic_" + pos);
+                    props.put("outTopic", "topic_" + outTopic_pos);
+                    props.put("function", "windowaggregate");
+                    if (isLocal) props.put("bootstrap.servers", "localhost:9092");
+                    else props.put("bootstrap.servers", global_prop.getProperty("bootstrap.servers"));
+                    ls_properties.add(props);
+
+                }
+                break;
+            default:
+                System.out.println("the function you provided at stage "+pos+" doesn't match any function implemented");
+                System.out.println("retry");
+                err();
+
+
+        }
+        System.out.println("Stage [" + pos + "] created with " + stage_processors + " processors");
+        return ls_properties;
     }
 
 
-    private Properties build_source() {
+    public Properties build_source() {
 
         Properties props = new Properties();
         Properties global_prop = this.loadEnvProperties("config.properties");
         props.put("outTopic", "topic_" + 1);
-
+        props.put("type","source");
         if(isLocal) props.put("bootstrap.servers", "localhost:9092");
         else props.put("bootstrap.servers", global_prop.getProperty("bootstrap.servers"));
-
-        props.put("key.deserializer", StringDeserializer.class.getName());
-        props.put("value.deserializer", StringDeserializer.class.getName());
         props.put("transactionId", "source_transactional_id");
         System.out.println("Source configured");
 
@@ -92,13 +196,14 @@ public class TopologyBuilder {
     }
 
 
-    private void generate_server_properties(int num_brokers) {
+  /*  private void generate_server_properties(int num_brokers) {
+        //FIXME add zookeeper.connect
         String path = System.getProperty("user.dir")+"/";
 
         if(isLocal) path = System.getProperty("user.dir") + "/../kafka_2.12-2.3.1/config/";
 
         for (int i = 0; i < num_brokers; i++) {
-            File f = new File(path + "server" + i + ".properties");
+            File f = new File(path + "server" + i + ".properties"); //fixme folder for each server
             try (OutputStream output = new FileOutputStream(f)) {
 
                 //Properties prop = new Properties();
@@ -109,8 +214,11 @@ public class TopologyBuilder {
                     prop_default.setProperty("listeners", "PLAINTEXT://:909" + (2 + (i * 2)));
 
                 }else{
-                    prop_default.setProperty("listeners", "PLAINTEXT://"+loadEnvProperties("adminClient.properties")
-                            .getProperty("bootstrap.servers")+":909" + (2 + (i * 2)));
+                    //FIXME if is first server then zookeeper is localhost. Else it is private ip of first machine of cluster
+
+                    //prop_default.setProperty("zookeeper.connect","")
+                    prop_default.setProperty("listeners", "PLAINTEXT://"+loadEnvProperties("config.properties")
+                            .getProperty("bootstrap.servers.internal")+":909" + (2 + (i * 2)));
                     prop_default.setProperty("advertised.listeners",
                             "PLAINTEXT://"+loadEnvProperties("config.properties").getProperty("bootstrap.servers"));
 
@@ -126,9 +234,16 @@ public class TopologyBuilder {
 
         }
         System.out.println("server.properties generated");
-    }
+    }*/
 
-    private static void appendUsingPrintWriter(String filePath, String text) {
+    static void appendUsingPrintWriter(String filePath, String text) {
+        /**
+         * utility function:
+         * appends to file
+         * @param: path to file to write into
+         * @param: text to append
+         * @return: void
+         */
         File file = new File(filePath);
         FileWriter fr = null;
         BufferedWriter br = null;
@@ -153,7 +268,11 @@ public class TopologyBuilder {
     }
 
 
-    private void transferFiles(String pipelineLength, String server){
+   /* private void transferFiles(String pipelineLength, String server){
+        *//**
+         * transfer files for a broker to start to one server, the files are composed of a list of server.properties and a .sh to launch kafka
+         * (and eventually zookeeper).
+         **//*
         System.out.println("uploading configuration files to cloud..");
         try {
             String[] cmdArray = new String[3];
@@ -170,9 +289,9 @@ public class TopologyBuilder {
             e.printStackTrace();
         }
         System.out.println("Uploaded");
-    }
+    }*/
 
-    private void generate_sh(int num_brokers, final ArrayList<Integer> partitions_array) {
+    /*private void generate_sh(int num_brokers, final ArrayList<Integer> partitions_array) {
         String sh_path = System.getProperty("user.dir")+ "/start_kafka_cluster.sh";
 
         if(isLocal) sh_path = System.getProperty("user.dir") + "/../kafka_2.12-2.3.1/start_kafka_cluster.sh";
@@ -213,8 +332,8 @@ public class TopologyBuilder {
                 TopologyBuilder.appendUsingPrintWriter(sh_path,
                         "./bin/kafka-topics.sh " +
                                 "--create " +
-                                "--bootstrap-server "+loadEnvProperties("adminClient.properties")
-                                .getProperty("bootstrap.servers").toString()+":9092 " + //fixme add private hostname retrieved from adminClient properties
+                                "--bootstrap-server "+loadEnvProperties("config.properties")
+                                .getProperty("bootstrap.servers.internal")+":9092 " + //fixme add private hostname retrieved from adminClient properties
                                 "--replication-factor " + replication_factor + " " +
                                 "--partitions " + partitions_array.get(i).toString() + " " +
                                 "--topic topic_" + (i + 1) + " &\n");
@@ -223,9 +342,33 @@ public class TopologyBuilder {
 
 
         System.out.println("topology deployment sh generated");
-    }
+    }*/
 
-    private void start_kafka_cluster() {
+    /*private void generate_cluster_sh(){
+        int num_servers = Integer.parseInt(loadEnvProperties("config.properties").getProperty("cluster_servers"));
+        for (int i = 1; i < num_servers; i++) {
+            String sh_path = System.getProperty("user.dir")+ "/start_kafka_cluster"+i+".sh";
+
+        }
+    }*/
+
+    public ArrayList<Properties> build_stages(){
+
+        Properties global_prop = this.loadEnvProperties("config.properties");
+        int pipeline_length = Integer.parseInt(global_prop.getProperty("pipeline.length"));
+
+        //build stages properties
+        ArrayList<Properties> lst_stage_props = new ArrayList<>();
+
+        for (int i = 0; i < pipeline_length; i++) {
+
+            lst_stage_props.addAll(this.buildStage(i + 1));
+        }
+        return lst_stage_props;
+
+    };
+
+    /*private void start_kafka_cluster() {
         try {
             final ExecutorService executor = Executors.newFixedThreadPool(2);
             executor.submit(new Bash_runner());
@@ -236,11 +379,27 @@ public class TopologyBuilder {
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
+    }*/
+
+    public Properties build_sink() {
+
+
+        Properties props = new Properties();
+        Properties global_prop = this.loadEnvProperties("config.properties");
+        int pipelineLength = Integer.parseInt(global_prop.getProperty("pipeline.length"));
+        props.put("type","sink");
+        props.put("inTopic", "topic_" + (pipelineLength + 1));
+        if(isLocal) props.put("bootstrap.servers", "localhost:9092");
+        else props.put("bootstrap.servers", global_prop.getProperty("bootstrap.servers"));
+        System.out.println("Sink configured");
+        return props;
+
     }
 
     public static void main(String[] args) {
 
-        /* read topology of pipeline from configuration file*/
+
+       /* *//* read topology of pipeline from configuration file*//*
         System.out.println("Reading configuration file..");
         TopologyBuilder topologyBuilder = new TopologyBuilder();
         Properties prop = topologyBuilder.loadEnvProperties("config.properties");
@@ -278,8 +437,8 @@ public class TopologyBuilder {
         topologyBuilder.generate_server_properties(final_cluster_size);
 
         //once done, transfer this files to the server
-        if(!isLocal) topologyBuilder.transferFiles(prop.getProperty("pipeline.length"),topologyBuilder.loadEnvProperties("adminClient.properties")
-                .getProperty("serverDNs"));
+        if(!isLocal) topologyBuilder.transferFiles(prop.getProperty("pipeline.length"),topologyBuilder.loadEnvProperties("config.properties")
+                .getProperty("bootstrap.servers.external"));//FIXME
 
 
         // generate .sh file
@@ -306,7 +465,7 @@ public class TopologyBuilder {
         Properties propSource = topologyBuilder.build_source();
 
         //build sink
-        Properties propSink = topologyBuilder.build_sink(pipeline_length);
+        Properties propSink = topologyBuilder.build_sink();
 
 
         //build stages properties
@@ -314,11 +473,7 @@ public class TopologyBuilder {
 
         for (int i = 0; i < pipeline_length; i++) {
 
-            try {
-                lst_stage_props.add(topologyBuilder.build_stage(i + 1));
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+            lst_stage_props.add(topologyBuilder.build_stage(i + 1));
         }
 
         //retrieve defined pipeline
@@ -419,22 +574,9 @@ public class TopologyBuilder {
         } catch (InterruptedException e) {
             e.printStackTrace();
 
-        }
+        }*/
 
     }
 
-    private Properties build_sink(int pipelineLength) {
-        Properties props = new Properties();
-        Properties global_prop = this.loadEnvProperties("config.properties");
-        props.put("inTopic", "topic_" + (pipelineLength + 1));
 
-        if(isLocal) props.put("bootstrap.servers", "localhost:9092");
-        else props.put("bootstrap.servers", global_prop.getProperty("bootstrap.servers"));
-
-        props.put("key.deserializer", StringDeserializer.class.getName());
-        props.put("value.deserializer", StringDeserializer.class.getName());
-        System.out.println("Sink configured");
-        return props;
-
-    }
 }

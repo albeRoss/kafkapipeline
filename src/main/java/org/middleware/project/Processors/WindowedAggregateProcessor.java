@@ -17,6 +17,14 @@ public class WindowedAggregateProcessor extends StageProcessor{
     private int slide;
     private int pos;
 
+    public int getPos() {
+        return pos;
+    }
+
+    public void setPos(int pos) {
+        this.pos = pos;
+    }
+
     public WindowedAggregateProcessor(WindowedAggregate windowedAggregate, int windowSize, int slide, int stagePos) {
         this.windowedAggregate = windowedAggregate;
         this.windowSize = windowSize;
