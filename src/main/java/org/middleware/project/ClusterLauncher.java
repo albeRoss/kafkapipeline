@@ -167,15 +167,15 @@ public class ClusterLauncher {
         return res;
     }
 
-    public int get_number_of_processors(){
+    public int get_number_of_processors() {
         int finalsize = 0;
         Properties prop = loadEnvProperties("config.properties");
         int pipeline_length = Integer.parseInt(prop.getProperty("pipeline.length"));
         for (int i = 1; i < pipeline_length + 1; i++) {
 
-            assert prop.getProperty("processors.at." + i)!=null;
+            assert prop.getProperty("processors.at." + i) != null;
             int cluster_size = new Integer(prop.getProperty("processors.at." + i));
-            finalsize+=cluster_size;
+            finalsize += cluster_size;
 
         }
         return finalsize;
@@ -204,7 +204,7 @@ public class ClusterLauncher {
     private void generate_sh_first_server() {
 
         String sh_path = System.getProperty("user.dir") + "/server0/start_kafka_broker.sh";
-        String sh_create_topics = System.getProperty("user.dir")+"/create_topics.sh";
+        String sh_create_topics = System.getProperty("user.dir") + "/create_topics.sh";
 
         //retrieve replication factor and pipeline.length from config
         String replication_factor = loadEnvProperties("config.properties").getProperty("replication.factor");
@@ -241,10 +241,7 @@ public class ClusterLauncher {
 
         TopologyBuilder.appendUsingPrintWriter(sh_path,
                 "KAFKA_HEAP_OPTS=\"-Xmx512M -Xms512M\" ./bin/kafka-server-start.sh -daemon config/server0.properties &\n");
-
-        /*TopologyBuilder.appendUsingPrintWriter(sh_path,
-                "sleep 10s &\n");*/
-
+        
         //create topics for the pipeline
         for (int i = 0; i < partitions.size(); i++) {
             TopologyBuilder.appendUsingPrintWriter(sh_create_topics,
@@ -368,7 +365,7 @@ public class ClusterLauncher {
         System.out.println("Kafka launched on AWS EC2 instances:\n" + listOfServers);
     }
 
-    public void create_topics(){
+    public void create_topics() {
         try {
             Thread.sleep(3000);
         } catch (InterruptedException e) {
@@ -525,6 +522,7 @@ public class ClusterLauncher {
             io.printStackTrace();
         }
     }
+
     private void checks() {
 
         //check replication factor < number of servers
@@ -552,9 +550,9 @@ public class ClusterLauncher {
             while ((line = b.readLine()) != null) {
                 int cores = Integer.parseInt(line);
                 int num_processors = get_number_of_processors();
-                if(cores<num_processors){
-                    System.out.println("[WARNING] \t you selected a cluster with "+cores+" total number of cores and "+
-                            +num_processors+" total number of processors. Select another configuration or continue and" +
+                if (cores < num_processors) {
+                    System.out.println("[WARNING] \t you selected a cluster with " + cores + " total number of cores and " +
+                            +num_processors + " total number of processors. Select another configuration or continue and" +
                             "take advantage of aws hyperthreading capabilities.");
                     System.out.println("Press c to continue, x to exit");
                 }

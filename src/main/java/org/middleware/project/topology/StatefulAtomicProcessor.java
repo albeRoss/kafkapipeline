@@ -93,7 +93,7 @@ public class StatefulAtomicProcessor extends StatelessAtomicProcessor {
         System.out.println(console + "failure!");
         dbc.close();
         System.out.println(console + "failure!");
-        //producer.abortTransaction();
+
         consumer.close();
         producer.close();
         running = false;
@@ -198,21 +198,33 @@ public class StatefulAtomicProcessor extends StatelessAtomicProcessor {
 
     public void restart(DB db) {
 
+        //Recovery mechanism
 
         long lastLocalConsumedOffset = getOffset(db);
 
         //need to compare last consumed offset with last local committed offset
         if (lastLocalConsumedOffset != 0) {
 
-
+            /**
+             * KAFKA DOC for ENDOFFSETS
+             * Get the last offset for the given partitions. The last offset of a partition is the offset of the upcoming message, i.e. the offset of the last available message + 1.
+             * Notice that this method may block indefinitely if the partition does not exist. This method does not change the current consumer position of the partitions.
+             *
+             * When isolation.level=read_committed the last offset will be the Last Stable Offset (LSO). This is the offset of the first message with an open transaction. The LSO moves forward as transactions are completed
+             */
             long nextOffsetTobeFetched = (long) consumer.endOffsets(Collections.singleton(partition)).values().toArray()[0];
             long lastOffsetConsumed = nextOffsetTobeFetched - 2;
             System.out.println(console + "last kafka fetched offset was: " + lastOffsetConsumed);
 
+            /**
+             * KAFKA DOC for COMMITTED
+             * Get the last committed offset for the given partition (whether the commit happened by this process or another). This offset will be used as the position for the consumer in the event of a failure.
+             * This call will block to do a remote call to get the latest committed offsets from the server.
+             */
             //retrieve the last committed kafka offset of intopic and partition during transaction
             long kafkaOffset = consumer.committed(partition).offset();
             System.out.println(console + "last kafka committed offset is :" + (kafkaOffset - 1));
-            //if necessary rollback
+            //if necessary recovery
             if ((kafkaOffset > lastOffsetConsumed) && (lastOffsetConsumed > lastLocalConsumedOffset)) {
 
                 System.out.println(console + "Consumer last committed offset is: " + kafkaOffset +
@@ -227,9 +239,6 @@ public class StatefulAtomicProcessor extends StatelessAtomicProcessor {
             }
         }
 
-
-        //if we are in sync with kafkaOffset ( kafkaoffset == 2+lastconsumedOffset ) then we have not to do anything
-        //consumer.seek(this.partition, lastLocalConsumedOffset);
     }
 
     @Override
@@ -255,8 +264,6 @@ public class StatefulAtomicProcessor extends StatelessAtomicProcessor {
 
                 // max.poll.records is set to 1
 
-
-
                 ConsumerRecords<String, String> records = this.consumer.poll(Duration.of(1, ChronoUnit.MINUTES));
                 this.producer.beginTransaction(); // request to the coordinator and await response
                 for (final ConsumerRecord<String, String> record : records) {
@@ -280,7 +287,7 @@ public class StatefulAtomicProcessor extends StatelessAtomicProcessor {
                 if (simulateCrash > 0 && crash.equals("before")) {
                     simulateCrash--;
                 } else {
-                    //db.rollback();
+
                    if(crash.equals("before")){
                        db.close();
                        crash();
@@ -309,7 +316,7 @@ public class StatefulAtomicProcessor extends StatelessAtomicProcessor {
                 if (simulateCrash > 0 && crash.equals("between")) {
                     simulateCrash--;
                 } else {
-                    //db.rollback();
+
                     if(crash.equals("between")){
                         db.close();
                         crash();
@@ -322,7 +329,7 @@ public class StatefulAtomicProcessor extends StatelessAtomicProcessor {
                 if (simulateCrash > 0 && crash.equals("after")) {
                     simulateCrash--;
                 } else {
-                    //db.rollback();
+
                     if(crash.equals("after")){
                         db.close();
                         crash();
@@ -338,9 +345,9 @@ public class StatefulAtomicProcessor extends StatelessAtomicProcessor {
             this.consumer.close();
             this.producer.close();
         } catch (InterruptedException e) {
-            System.out.println(console + "AtomicStatefulStageinterrupted:  possible rollback needed");
+            System.out.println(console + "AtomicStatefulProcessorinterrupted:  possible recovery needed");
             //this is needed for interruptions occurred before commit.
-            // for after commit interruption: the rollback is handled at restart (first part of run)
+            // for after commit interruption: the recovery is handled at restart (first part of run)
             db.rollback();
             e.printStackTrace();
         } catch (ProducerFencedException | OutOfOrderSequenceException | AuthorizationException e) {

@@ -7,10 +7,8 @@ import org.mapdb.Serializer;
 import org.middleware.project.Processors.StageProcessor;
 import org.middleware.project.topology.*;
 import org.middleware.project.utils.Pair;
-import org.middleware.project.utils.Utils;
 
 import java.io.*;
-import java.util.Arrays;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.CompletableFuture;
@@ -23,23 +21,6 @@ public class ProcessorStarter {
 
     public static void main(String[] args) {
 
-
-        /*read properties*/
-
-        /*File[] files = Utils.finder(System.getProperty("user.dir"));
-
-        for (File file :
-                files) {
-            try{
-                InputStream inputStream = new FileInputStream(file);
-                Properties properties = new Properties();
-                properties.load(inputStream);
-                System.out.println(properties.stringPropertyNames());
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-
-        }*/
         try {
             final ExecutorService executor_stage = Executors.newFixedThreadPool(2);
             InputStream inputStream = new FileInputStream(args[0]);
@@ -47,11 +28,10 @@ public class ProcessorStarter {
             properties.load(inputStream);
             StageProcessor function = null;
             if (properties.getProperty("type").equals("source")) {
-                CompletableFuture.runAsync(new Source(properties),Executors.newFixedThreadPool(1));
-            }else if (properties.getProperty("type").equals("sink")) {
-                CompletableFuture.runAsync(new Sink(properties),Executors.newFixedThreadPool(1));
-            }
-            else {
+                CompletableFuture.runAsync(new Source(properties), Executors.newFixedThreadPool(1));
+            } else if (properties.getProperty("type").equals("sink")) {
+                CompletableFuture.runAsync(new Sink(properties), Executors.newFixedThreadPool(1));
+            } else {
 
                 switch (properties.getProperty("function")) {
                     case "flatmap":
@@ -68,10 +48,11 @@ public class ProcessorStarter {
                         break;
                 }
                 assert function != null;
-                if (properties.getProperty("type").equals("stateless")){
+                if (properties.getProperty("type").equals("stateless")) {
                     StageProcessor finalFunction = function;
                     CompletableFuture.runAsync(new StatelessAtomicProcessor(properties,
                             function), executor_stage).exceptionally(throwable -> {
+
                         //here we handle restart of crashed processors
 
                         DB dbc = DBMaker.fileDB("crashedThreads.db").fileMmapEnableIfSupported().make();
@@ -97,7 +78,7 @@ public class ProcessorStarter {
                         System.out.println("scrolled every entry of crashed threads");
                         return null;
                     });
-                }else if (properties.getProperty("type").equals("stateful")){
+                } else if (properties.getProperty("type").equals("stateful")) {
                     StageProcessor finalFunction = function;
                     CompletableFuture.runAsync(new StatefulAtomicProcessor(properties,
                             function), executor_stage).exceptionally(throwable -> {
@@ -126,7 +107,7 @@ public class ProcessorStarter {
                         System.out.println("scrolled every entry of crashed threads");
                         return null;
                     });
-                }else throw new RuntimeException("processor cannot start");
+                } else throw new RuntimeException("processor cannot start");
 
             }
         } catch (IOException e) {

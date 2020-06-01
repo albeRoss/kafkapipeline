@@ -1,18 +1,10 @@
 package org.middleware.project;
 
-import org.mapdb.DB;
-import org.mapdb.DBMaker;
-import org.mapdb.HTreeMap;
-import org.mapdb.Serializer;
 import org.middleware.project.Processors.*;
-
 import java.util.*;
 
 public class PipelineFunctions {
 
-
-    private List<StageProcessor> processors;
-    private String name;
 
     public static FilterProcessor FILTERPROCESSOR = new FilterProcessor((String k, String v) -> k.hashCode() % 2 == 1);
 
@@ -40,21 +32,21 @@ public class PipelineFunctions {
         HashMap<String, String> res_aggr = new HashMap<>();
         res_aggr.put(key, res);
         return res_aggr;
-    }, 3, 1, 1);
+    }, 3, 1, 1); // these are default values, they are set at runtime
 
 
 
-    public PipelineFunctions(List<StageProcessor> processors, String name) {
+   /* public PipelineFunctions(List<StageProcessor> processors, String name) {
         this.processors = processors;
         this.name = name;
-    }
+    }*/
 
 
-    public static final PipelineFunctions pipeline_1 = new PipelineFunctions(Arrays.asList(
+    /*public static final PipelineFunctions pipeline_1 = new PipelineFunctions(Arrays.asList(
 
             //new FilterProcessor((String k, String v) -> k.hashCode() % 2 == 1)
 
-           /* new MapProcessor((String key, String value)->{
+           *//* new MapProcessor((String key, String value)->{
                 HashMap<String,String> result = new HashMap<>();
                 result.put(key,value.toUpperCase());
                 return result;
@@ -62,7 +54,7 @@ public class PipelineFunctions {
                 HashMap<String, List<String>> result = new HashMap<>();
                 result.put(key, Arrays.asList("A","msg"));
                 return result;
-            })*/
+            })*//*
            new WindowedAggregateProcessor((String key, List<String> values) -> {
                 String res = "";
                 for (String v : values) {
@@ -72,7 +64,7 @@ public class PipelineFunctions {
                 res_aggr.put(key, res);
                 return res_aggr;
             }, 3, 1, 1)  // NB YOU MUST PUT THE RIGHT POSITION: pipelineLength <= stagePos >=1
-            /*, new FilterProcessor((String k, String v) -> k.hashCode() % 2 == 1)*/
+            *//*, new FilterProcessor((String k, String v) -> k.hashCode() % 2 == 1)*//*
              , new FlatMapProcessor((String key, String value) -> {
                 HashMap<String, List<String>> result = new HashMap<>();
                 List<String> flatten = new ArrayList<>();
@@ -89,7 +81,7 @@ public class PipelineFunctions {
 
             new FilterProcessor((String k, String v) -> k.hashCode() % 2 == 1)
 
-            /*,new MapProcessor((String key, String value)->{
+            *//*,new MapProcessor((String key, String value)->{
                 HashMap<String,String> result = new HashMap<>();
                 result.put(value,"ABC");
                 return result;
@@ -98,7 +90,7 @@ public class PipelineFunctions {
                 result.put(key, Arrays.asList("A","msg"));
                 return result;
             })
-           */, new WindowedAggregateProcessor((String key, List<String> values) -> {
+           *//*, new WindowedAggregateProcessor((String key, List<String> values) -> {
                 String res = "";
                 for (String v : values) {
                     res = res.concat(v);
@@ -106,7 +98,7 @@ public class PipelineFunctions {
                 HashMap<String, String> res_aggr = new HashMap<>();
                 res_aggr.put(key, res);
                 return res_aggr;
-            }, 3, 1, 2)  // NB YOU MUST PUT THE RIGHT POSITION: pipelineLength <= stagePos >=1
+            }, 3, 1, 2)
             //, new FilterProcessor((String k, String v) -> k.hashCode() % 2 == 1)
             , new FlatMapProcessor((String key, String value) -> {
                 HashMap<String, List<String>> result = new HashMap<>();
@@ -118,13 +110,13 @@ public class PipelineFunctions {
                 return result;
             })
     )
-            , "pipeline1");
+            , "pipeline1");*/
 
-    public List<StageProcessor> getProcessors() {
+   /* public List<StageProcessor> getProcessors() {
         return processors;
     }
 
     public String getName() {
         return name;
-    }
+    }*/
 }

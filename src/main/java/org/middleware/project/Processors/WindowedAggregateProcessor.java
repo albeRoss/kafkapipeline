@@ -11,15 +11,10 @@ public class WindowedAggregateProcessor extends StageProcessor{
 
     private ConcurrentMap<String, List<String>> windows;
     private ConcurrentMap<String, List<String>> oldSlidedValues;
-    //private HTreeMap<String, List<String>> windows = new HTreeMap<String, List<String>>(); // the internal state shared among processor of the same consumer group
     private WindowedAggregate windowedAggregate;
     private int windowSize;
     private int slide;
     private int pos;
-
-    public int getPos() {
-        return pos;
-    }
 
     public void setPos(int pos) {
         this.pos = pos;
@@ -56,8 +51,6 @@ public class WindowedAggregateProcessor extends StageProcessor{
 
                 List<String> slidedWindow = new ArrayList<>(winValues.subList(winValues.size() - 1 - windowSize + slide, winValues.size()));
                 windows.put(key, slidedWindow); // Slide window
-
-                //System.out.println("window slided");
 
             } else {
                 winValues.add(value);
