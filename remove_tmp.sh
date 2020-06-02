@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
-#it removes logs from tmp folders
+#utility bash to  remove logs from tmp folders in EC2 instances
+#it assumes Linux distribution
 
 rm -r /../../../tmp/kafka-logs && rm -r /../../../tmp/zookeeper
