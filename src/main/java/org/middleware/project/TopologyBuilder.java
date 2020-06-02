@@ -116,7 +116,7 @@ public class TopologyBuilder {
                     } else props.put("simulateCrash", Integer.toString(0));
 
                     props.put("id", Integer.toString(i));
-                    props.put("crash", "between"); // possible values: before | after | between
+                    props.put("crash", "before"); // possible values: before | after | between
                     props.put("type", "stateful");
                     props.put("group.id", "group_" + pos);
                     props.put("inTopic", "topic_" + pos);

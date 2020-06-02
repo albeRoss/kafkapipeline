@@ -3,6 +3,9 @@ package org.middleware.project;
 import org.middleware.project.Processors.*;
 import java.util.*;
 
+/**
+ * ensamble of functions
+ */
 public class PipelineFunctions {
 
 

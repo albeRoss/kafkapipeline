@@ -18,7 +18,11 @@ import java.util.concurrent.Executors;
 
 public class ProcessorStarter {
 
-
+    /**
+     * mainclass server JAR
+     *
+     * @param args
+     */
     public static void main(String[] args) {
 
         try {

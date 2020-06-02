@@ -31,8 +31,6 @@ import java.util.concurrent.ConcurrentMap;
 
 public class StatelessAtomicProcessor implements Processor {
 
-    //private static final int numRepetitions = 200;
-
     protected String group;
     protected String inTopic;
     protected String outTopic;
@@ -83,7 +81,6 @@ public class StatelessAtomicProcessor implements Processor {
         running = true;
         System.out.println(console + "\t inTopic = " + inTopic
                 + "\t outTopic = " + outTopic + "\t boostrapServers = " + boostrapServers);
-        //System.out.println("\t transactionId = " + transactionId);
 
         init();
     }
@@ -91,6 +88,9 @@ public class StatelessAtomicProcessor implements Processor {
     public StatelessAtomicProcessor() {
     }
 
+    /**
+     *
+     */
     @Override
     public void init() {
 
@@ -120,6 +120,9 @@ public class StatelessAtomicProcessor implements Processor {
         System.out.println(console + "stage inititialized");
     }
 
+    /**
+     * @param record
+     */
     @Override
     public void process(final ConsumerRecord<String, String> record) {
 

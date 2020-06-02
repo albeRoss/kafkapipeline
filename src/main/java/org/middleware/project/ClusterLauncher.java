@@ -11,7 +11,19 @@ import java.util.*;
 
 public class ClusterLauncher {
 
+    /**
+     * This method depends <code> get_broker_ips </code> . Reads cluster.json and extracts the number of servers
+     * instanciated on AWS
+     * * @return
+     * * @throws IOException
+     * * @throws ParseException
+     *
+     * @return <code> int </code> : the number of servers instanciated
+     * @throws IOException    in case of cluster.json doesn't exists
+     * @throws ParseException if <code>JSONParser cannot </code>
+     */
     public int get_cluster_size() throws IOException, ParseException {
+
         JSONParser parser = new JSONParser();
         JSONArray servers = new JSONArray();
         JSONArray data = (JSONArray) parser.parse(
@@ -24,6 +36,11 @@ public class ClusterLauncher {
         return servers.size();
 
     }
+
+    /**
+     * @param fileName
+     * @return
+     */
 
     public static Properties loadEnvProperties(String fileName) {
         Properties prop = new Properties();
@@ -42,13 +59,14 @@ public class ClusterLauncher {
         return prop;
     }
 
+    /**
+     * this method adds IP addresses of launched instances in config.properties
+     *
+     * @throws IOException
+     * @throws ParseException
+     */
     public void prepareConfigurationCluster() throws IOException, ParseException {
-        /**
-         * <p>
-         *     this method adds IP addresses of launched instances in config.properties,
-         *     it
-         * </p>
-         */
+
         JSONParser parser = new JSONParser();
 
         JSONArray data = (JSONArray) parser.parse(
@@ -119,12 +137,16 @@ public class ClusterLauncher {
         System.out.println("Endpoints servers added");
     }
 
+    /**
+     * DEPRECATED
+     * generate a folder for each server that contains server0.properties and only for the first server a
+     * script with
+     * that start broker and zookeeper and also generate the topics for the pipeline
+     *
+     * @param num_brokers
+     */
     private void generate_server_folders(int num_brokers) {
-        /**
-         * generate a folder for each server that contains server0.properties and only for the first server a
-         * script with
-         * that start broker and zookeeper and also generate the topics for the pipeline
-         */
+
         String path = System.getProperty("user.dir") + "/";
 
         for (int i = 0; i < num_brokers; i++) {
@@ -133,12 +155,10 @@ public class ClusterLauncher {
             Properties prop_default = loadEnvProperties("server.properties");
             Properties prop_config = loadEnvProperties("config.properties");
 
-            File f = new File(path + "/server" + i + "/server0.properties"); //fixme folder for each server
+            File f = new File(path + "/server" + i + "/server0.properties");
             f.getParentFile().mkdirs();
 
             try (OutputStream output = new FileOutputStream(f)) {
-
-                //FIXME if is first server then zookeeper is localhost. Else it is private ip of first machine of cluster
 
                 String listeners = addPlainText(prop_config.getProperty("bootstrap.servers.internal"));
                 String adListeners = addPlainText(prop_config.getProperty("bootstrap.servers"));
@@ -159,6 +179,12 @@ public class ClusterLauncher {
         System.out.println("Server.properties generated");
     }
 
+    /**
+     * Utility function
+     *
+     * @param listOfServers
+     * @return
+     */
     public String addPlainText(final String listOfServers) {
         List<String> array = Arrays.asList(listOfServers.split(","));
         for (String item : array) {
@@ -168,6 +194,10 @@ public class ClusterLauncher {
         return res;
     }
 
+    /**
+     *
+     * @return
+     */
     public int get_number_of_processors() {
         int finalsize = 0;
         Properties prop = loadEnvProperties("config.properties");
@@ -182,13 +212,13 @@ public class ClusterLauncher {
         return finalsize;
     }
 
+    /**
+     * returns a list containing integers numbers that correspond to the number of partition for each topic.
+     * The order of the element in the list reflects to the order of the topics in the pipeline
+     * @param pipeline_length
+     * @return
+     */
     public ArrayList<Integer> getListSizeOfPartitions(int pipeline_length) {
-
-        /**
-         * returns a list containing integers numbers that correspond to the number of partition for each topic.
-         * The order of the element in the list reflects to the order of the topics in the pipeline
-         *
-         */
 
         Properties prop = loadEnvProperties("config.properties");
         ArrayList<Integer> topic_partitions = new ArrayList<>();
@@ -202,6 +232,9 @@ public class ClusterLauncher {
 
     }
 
+    /**
+     *
+     */
     private void generate_sh_first_server() {
 
         String sh_path = System.getProperty("user.dir") + "/server0/start_kafka_broker.sh";
@@ -257,7 +290,9 @@ public class ClusterLauncher {
         System.out.println(".sh for first node generated");
     }
 
-
+    /**
+     *
+     */
     public void clean_properties() {
 
 
@@ -289,6 +324,9 @@ public class ClusterLauncher {
 
     }
 
+    /**
+     *
+     */
     public void clean_cluster_properties() {
 
         try {
@@ -305,6 +343,9 @@ public class ClusterLauncher {
         }
     }
 
+    /**
+     *
+     */
     public void renameconfig() {
         try {
             File f1 = new File(System.getProperty("user.dir") + "/resources/config_start.properties");
@@ -316,17 +357,20 @@ public class ClusterLauncher {
         }
     }
 
+    /**
+     *
+     * @return
+     */
     public ArrayList<String> getListOfServersPublicIps() {
         String list_instances = loadEnvProperties("config.properties").getProperty("bootstrap.servers.external");
         return new ArrayList(Arrays.asList(list_instances.split(",")));
     }
 
+    /**
+     * transfer files for a kafka broker to each instance, the files are composed of a  server.properties and
+     * a .sh to launch kafka with zookeeper to a random instance
+     */
     public void transferFiles() {
-        /**
-         * transfer files for a kafka broker to each instance, the files are composed of a  server.properties and
-         * a .sh to launch kafka with zookeeper to a random instance
-         *
-         **/
         ArrayList<String> listOfServers = getListOfServersPublicIps();
         try {
 
@@ -346,6 +390,9 @@ public class ClusterLauncher {
         System.out.println("Configuration files uploaded on AWS EC2 instances:\n" + listOfServers);
     }
 
+    /**
+     *
+     */
     public void launchKafkaOnMachines() {
 
         ArrayList<String> listOfServers = getListOfServersPublicIps();
@@ -366,6 +413,9 @@ public class ClusterLauncher {
         System.out.println("Kafka launched on AWS EC2 instances:\n" + listOfServers);
     }
 
+    /**
+     *
+     */
     public void create_topics() {
         try {
             Thread.sleep(3000);
@@ -386,6 +436,9 @@ public class ClusterLauncher {
 
     }
 
+    /**
+     *
+     */
     public void launch_instances() {
         System.out.println("How many instances? Insert a number, x to exit");
         Scanner input = new Scanner(System.in);
@@ -412,6 +465,9 @@ public class ClusterLauncher {
         }
     }
 
+    /**
+     *
+     */
     public void get_brokers_ips() {
         String[] cmdArray = new String[1];
         cmdArray[0] = "./get_brokers_ips.sh";
@@ -424,6 +480,9 @@ public class ClusterLauncher {
         System.out.println("instances launched");
     }
 
+    /**
+     *
+     */
     public void transfer_processors_files() {
 
         ArrayList<String> listOfServers = getListOfServersPublicIps();
@@ -446,6 +505,9 @@ public class ClusterLauncher {
 
     }
 
+    /**
+     *
+     */
     public void launch_processors() {
 
         try {
@@ -470,6 +532,11 @@ public class ClusterLauncher {
 
     }
 
+    /**
+     *
+     * @throws IOException
+     * @throws ParseException
+     */
     public void generate_properties_processors() throws IOException, ParseException {
 
         /* cleaning first */
@@ -524,6 +591,9 @@ public class ClusterLauncher {
         }
     }
 
+    /**
+     *
+     */
     private void checks() {
 
         //check replication factor < number of servers
@@ -574,6 +644,12 @@ public class ClusterLauncher {
         System.exit(1);
     }
 
+    /**
+     * mainclass local JAR
+     * @param args
+     * @throws IOException
+     * @throws ParseException
+     */
     public static void main(String[] args) throws IOException, ParseException {
 
         ClusterLauncher clusterLauncher = new ClusterLauncher();
