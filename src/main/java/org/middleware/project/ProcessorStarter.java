@@ -67,7 +67,7 @@ public class ProcessorStarter {
                         for (Map.Entry<Integer, Pair<Integer, String>> crashed : mapc.entrySet()) {
                             System.out.println("restarting processor\t id : " + crashed.getKey() + "\t stagePos: "
                                     + crashed.getValue().getKey() + " : " + crashed.getValue().getValue());
-                            if (crashed.getValue().getValue().equals("stateful")) {
+                            if (crashed.getValue().getValue().equals("stateless")) {
                                 properties.setProperty("simulateCrash", String.valueOf(0));
                                 CompletableFuture.runAsync(new StatelessAtomicProcessor(properties, finalFunction),
                                         Executors.newFixedThreadPool(1));

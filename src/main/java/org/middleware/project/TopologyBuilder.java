@@ -56,7 +56,10 @@ public class TopologyBuilder {
             case "flatmap":
                 for (int i = 0; i < stage_processors; i++) {
                     Properties props = new Properties();
-                    props.put("simulateCrash", Integer.toString(0)); // change here to simulate crash
+                    if (i % 2 == 0) { // set false not to simulate a crash
+                        props.put("simulateCrash", Integer.toString(r.nextInt(10 - low) + low)); // change here to simulate crash
+
+                    } else props.put("simulateCrash", Integer.toString(0));
                     props.put("id", Integer.toString(i));
                     props.put("type", "stateless");
                     props.put("group.id", "group_" + pos);
@@ -91,7 +94,7 @@ public class TopologyBuilder {
             case "filter":
                 for (int i = 0; i < stage_processors; i++) {
                     Properties props = new Properties();
-                    if (false) { // set false not to simulate a crash
+                    if (i % 2 == 0) { // set false not to simulate a crash
                         props.put("simulateCrash", Integer.toString(r.nextInt(10 - low) + low)); // change here to simulate crash
 
                     } else props.put("simulateCrash", Integer.toString(0));
@@ -116,7 +119,7 @@ public class TopologyBuilder {
                     } else props.put("simulateCrash", Integer.toString(0));
 
                     props.put("id", Integer.toString(i));
-                    props.put("crash", "before"); // possible values: before | after | between
+                    props.put("crash", "between"); // possible values: before | after | between
                     props.put("type", "stateful");
                     props.put("group.id", "group_" + pos);
                     props.put("inTopic", "topic_" + pos);

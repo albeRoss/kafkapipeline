@@ -287,6 +287,15 @@ public class ClusterLauncher {
                             "--partitions " + partitions.get(i).toString() + " " +
                             "--topic topic_" + (i + 1) + " &\n");
         }
+
+        TopologyBuilder.appendUsingPrintWriter(sh_create_topics,
+                "../kafka_2.12-2.3.1/bin/kafka-topics.sh " +
+                        "--create " +
+                        "--bootstrap-server " + loadEnvProperties("config.properties")
+                        .getProperty("bootstrap.servers") + " " +
+                        "--replication-factor " + replication_factor + " " +
+                        "--partitions " + 1 + " " +
+                        "--topic topic_" + (partitions.size() + 1) + " &\n");
         System.out.println(".sh for first node generated");
     }
 

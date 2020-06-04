@@ -208,6 +208,8 @@ public class StatefulAtomicProcessor extends StatelessAtomicProcessor {
         long lastLocalConsumedOffset = getOffset(db);
 
         //need to compare last consumed offset with last local committed offset
+
+        //we first check if we even started a transaction
         if (lastLocalConsumedOffset != 0) {
 
             /**
@@ -267,6 +269,7 @@ public class StatefulAtomicProcessor extends StatelessAtomicProcessor {
             //prerestart routine
             restart(db);
 
+
             // after initTransactions returns any transactions started by another instance of a producer
             // with the same transactional.id would have been closed and fenced off
             this.producer.initTransactions();
@@ -299,12 +302,13 @@ public class StatefulAtomicProcessor extends StatelessAtomicProcessor {
                     simulateCrash--;
                 } else {
 
-                   if(crash.equals("before")){
-                       db.close();
-                       crash();
-                   }
+                    if (crash.equals("before")) {
+                        db.close();
+                        crash();
+                    }
 
                 }
+
                 Thread.sleep(100);
 
                 /*-----------------*/
