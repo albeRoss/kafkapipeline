@@ -1,6 +1,8 @@
 # Project exclude paths
 /target/
 /out/
+/.idea/
+
 
 src/main/java/org/middleware/project/App.java
 

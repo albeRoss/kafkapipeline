@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-#standalone ssh to remove tmp on instances
+#script with ssh to remove tmp on instances
 #expects a list of elastic ips
 IFS=',' read -ra my_array <<< "$1"
 for j in "${my_array[@]}"

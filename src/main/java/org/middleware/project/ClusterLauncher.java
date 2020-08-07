@@ -13,11 +13,8 @@ public class ClusterLauncher {
 
     /**
      * This method depends <code> get_broker_ips </code> . Reads cluster.json and extracts the number of servers
-     * instanciated on AWS
-     * * @return
-     * * @throws IOException
-     * * @throws ParseException
-     *
+     * instantiated on AWS
+     * @author Alberto Rossettini
      * @return <code> int </code> : the number of servers instanciated
      * @throws IOException    in case of cluster.json doesn't exists
      * @throws ParseException if <code>JSONParser cannot </code>
@@ -38,8 +35,9 @@ public class ClusterLauncher {
     }
 
     /**
-     * @param fileName
-     * @return
+     * utility function to load .properties
+     * @param fileName the name of the file to be loaded
+     * @return <code> Properties </code> the requested properties
      */
 
     public static Properties loadEnvProperties(String fileName) {
@@ -60,7 +58,7 @@ public class ClusterLauncher {
     }
 
     /**
-     * this method adds IP addresses of launched instances in config.properties
+     * adds IP addresses of launched instances in config.properties
      *
      * @throws IOException
      * @throws ParseException
@@ -138,12 +136,13 @@ public class ClusterLauncher {
     }
 
     /**
-     * DEPRECATED
-     * generate a folder for each server that contains server0.properties and only for the first server a
+     * generates a folder for each server that contains server0.properties and only for the first server a
      * script with
      * that start broker and zookeeper and also generate the topics for the pipeline
      *
-     * @param num_brokers
+     * @param num_brokers number of brokers speficied in configuration files
+     * @deprecated  Replaced by
+     * @see {@link #prepareConfigurationCluster()}  }
      */
     private void generate_server_folders(int num_brokers) {
 
@@ -180,10 +179,10 @@ public class ClusterLauncher {
     }
 
     /**
-     * Utility function
-     *
-     * @param listOfServers
-     * @return
+     * utility function
+     * adds protocol reference for ips correct interpretation
+     * @param listOfServers commma separated strings corresponding to the ips of EC2 instances
+     * @return <code> String </code>  the modified string
      */
     public String addPlainText(final String listOfServers) {
         List<String> array = Arrays.asList(listOfServers.split(","));
@@ -233,7 +232,11 @@ public class ClusterLauncher {
     }
 
     /**
+     * Generates <i>start_kafka_broker.sh</i> and <i>create_topics.sh</i>. The former its a modified version on the same
+     * script that run on each server: this one contains commands to start and distribute all the brokers with requested
+     * configuration. The latter creates the topics that are used throughout the pipeline
      *
+     * @throws IOException
      */
     private void generate_sh_first_server() {
 
@@ -300,7 +303,9 @@ public class ClusterLauncher {
     }
 
     /**
-     *
+     * Utility function
+     * Accesses local resources and wipe up fields in .properties files
+     * @throws IOException
      */
     public void clean_properties() {
 
@@ -322,8 +327,6 @@ public class ClusterLauncher {
             config.store(output, null);
 
 
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -334,7 +337,11 @@ public class ClusterLauncher {
     }
 
     /**
-     *
+     * Deletes processors configurations generated at previous runs
+     * Delegates to <code>remove_processors_properties.sh</code>
+     * @throws IOException
+     * @throws ParseException
+     * @throws InterruptedException
      */
     public void clean_cluster_properties() {
 
@@ -353,7 +360,9 @@ public class ClusterLauncher {
     }
 
     /**
-     *
+     * Utility function
+     * renames configuration file <i>config_start.properties</i> to <i>config.properties</i>
+     * @throws IOException
      */
     public void renameconfig() {
         try {
@@ -368,7 +377,7 @@ public class ClusterLauncher {
 
     /**
      *
-     * @return
+     * @return ArrayList : the list of public ips of EC2 instances
      */
     public ArrayList<String> getListOfServersPublicIps() {
         String list_instances = loadEnvProperties("config.properties").getProperty("bootstrap.servers.external");
@@ -400,7 +409,8 @@ public class ClusterLauncher {
     }
 
     /**
-     *
+     * Delegates to <code> launch_kafka_cluster.sh </code>
+     * @throws IOException
      */
     public void launchKafkaOnMachines() {
 
@@ -424,6 +434,9 @@ public class ClusterLauncher {
 
     /**
      *
+     * Delegates to <code>create_topics.sh</code>
+     * @throws InterruptedException
+     * @throws IOException
      */
     public void create_topics() {
         try {
@@ -446,7 +459,11 @@ public class ClusterLauncher {
     }
 
     /**
-     *
+     * Launches as many EC2 instances as requested
+     * @link README.md EC2 default type
+     * Delegates to <code>launch_instances.sh</code>
+     * @throws IOException
+     * @throws InterruptedException
      */
     public void launch_instances() {
         System.out.println("How many instances? Insert a number, x to exit");
@@ -475,7 +492,10 @@ public class ClusterLauncher {
     }
 
     /**
-     *
+     * Retrieves servers ips and saves them in json format into <i>cluster.json</i>
+     * Delegates to <code> get_brokers_ips.sh </code>
+     * @throws IOException
+     * @throws InterruptedException
      */
     public void get_brokers_ips() {
         String[] cmdArray = new String[1];
@@ -490,7 +510,10 @@ public class ClusterLauncher {
     }
 
     /**
-     *
+     * Uploads configuration files and runnable to the servers
+     * Delegates to <code> transfer_processors_files.sh </code>
+     * @throws IOException
+     * @throws InterruptedException
      */
     public void transfer_processors_files() {
 
@@ -515,7 +538,10 @@ public class ClusterLauncher {
     }
 
     /**
-     *
+     * Launches the application server-side
+     * Delegates to <code> run_processors_on_servers.sh </code>
+     * @throws IOException
+     * @throws InterruptedException
      */
     public void launch_processors() {
 
@@ -542,6 +568,7 @@ public class ClusterLauncher {
     }
 
     /**
+     * Generates properties for each processor in the pipeline, the source and the sink
      *
      * @throws IOException
      * @throws ParseException
@@ -601,7 +628,12 @@ public class ClusterLauncher {
     }
 
     /**
-     *
+     * Utility function
+     * checks if replication factor in config.properties is consistent with number of instances requested and the
+     * instances can sustain in a scalable manner the processors of the pipeline. Exits if the replication factor is
+     * lower than the number of instances
+     * @throws ParseException
+     * @throws IOException
      */
     private void checks() {
 
@@ -647,7 +679,6 @@ public class ClusterLauncher {
             e.printStackTrace();
         }
     }
-
     private static final void err() {
         System.out.println("exiting");
         System.exit(1);
@@ -655,7 +686,8 @@ public class ClusterLauncher {
 
     /**
      * mainclass local JAR
-     * @param args
+     * Entrypoint for the pipeline to be launched
+     * @param args (optional)
      * @throws IOException
      * @throws ParseException
      */
