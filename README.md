@@ -37,29 +37,29 @@ The following were the requests:
 - AWS CLI `pip install awscli` 
 - t2.2xlarge 
 
-###Installing
+### Installing
 - choose the pipeline and change *config.properties* 
 - compile local jar
 - compile remote jar
 
-##Deployment 
+## Deployment 
 
 - compile remote jar
 - transfer remote jar into the the instance, save ami and create the template
 we use a template with an AMI in order to run with t2.2xlarge
 create an ami with 
 
-##Demo
+## Demo
 
-##Dependecies
+## Dependecies
 
-##Contributing
+## Contributing
 
-##Authors
+## Authors
 
-##License
+## License
 
-##Acknowledgments
+## Acknowledgments
 
 
 
