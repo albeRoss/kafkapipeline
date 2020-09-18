@@ -54,6 +54,9 @@ The executables for this project cannot be run without AWS EC2.
 - save the template from EC2 console with a name such as *Kafkatemplate*
 - modify [launch_instances.sh](launch_instances.sh) with the name of the template
 
+Now you can tweak the main parameters in the [configuration file](resources/config.properties) following 
+[this](#configurations) syntax
+
 
 ### Prerequisites 
 - [Kafka 2.3.1](https://kafka.apache.org/downloads)
@@ -65,10 +68,17 @@ The executables for this project cannot be run without AWS EC2.
 - Java JRE (version >=1.8) 
 - Kafka (version >= 2.12-2.31)
 
-### Installing
-- choose the pipeline and change *config.properties* 
-- compile local jar
-- compile remote jar
+### Configurations
+In [config.properties](resources/config.properties) you must specify 
+- pipeline.length
+- replication.factor
+
+Then, you must add a configuration for each stage of the pipeline. This configuration is identified by the following two
+parameters:
+- processors.at.<num>
+- function.at.<num>
+
+each
 
 ## Deployment 
 
