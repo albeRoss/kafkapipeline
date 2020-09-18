@@ -70,6 +70,11 @@ public class StatefulAtomicProcessor extends StatelessAtomicProcessor {
 
     }
 
+    /**
+     *
+     * @return reference to a org.mapdb.DB
+     */
+
     private DB openDBSession() {
         return DBMaker
                 .fileDB(this.group + id + ".db")
@@ -77,6 +82,11 @@ public class StatefulAtomicProcessor extends StatelessAtomicProcessor {
                 .make();
     }
 
+    /**
+     * Retrieve offset from saved map
+     * @param db
+     * @return long
+     */
     private long getOffset(DB db) {
         HTreeMap<Integer, Long> processedOffsetsMap = db.hashMap("processedOffsetsMap",
                 Serializer.INTEGER, Serializer.LONG).createOrOpen();
@@ -84,6 +94,10 @@ public class StatefulAtomicProcessor extends StatelessAtomicProcessor {
         return res;
     }
 
+    /**
+     * simulates crash
+     * @throws  RuntimeException
+     */
     private void crash() {
         System.out.println(console + "failure!");
         DB dbc = DBMaker.fileDB("crashedThreads.db").fileMmapEnableIfSupported().make();
@@ -325,6 +339,7 @@ public class StatefulAtomicProcessor extends StatelessAtomicProcessor {
                 //TRY CRASH
 
                 this.producer.sendOffsetsToTransaction(map, group);
+                //remote commit
                 this.producer.commitTransaction(); //  the offsets and the output records will be committed as
                 // an atomic unit
 
@@ -339,7 +354,7 @@ public class StatefulAtomicProcessor extends StatelessAtomicProcessor {
                     }
 
                 }
-
+                //local commit
                 db.commit();
 
                 if (simulateCrash > 0 && crash.equals("after")) {

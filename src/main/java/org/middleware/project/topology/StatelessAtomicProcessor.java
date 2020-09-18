@@ -61,13 +61,16 @@ public class StatelessAtomicProcessor implements Processor {
 
         switch (this.stage_function) {
             case "MapProcessor":
-                this.console = ConsoleColors.CYAN_BRIGHT + "[ " + this.stage_function.toUpperCase() + " : " + this.id + "\t GROUP : " + group + " ] ";
+                this.console = ConsoleColors.CYAN_BRIGHT + "[ " + this.stage_function.toUpperCase() + " : " + this.id +
+                        "\t GROUP : " + group + " ] ";
                 break;
             case "FlatMapProcessor":
-                this.console = ConsoleColors.BLUE + "[ " + this.stage_function.toUpperCase() + " : " + this.id + "\t GROUP : " + group + " ] ";
+                this.console = ConsoleColors.BLUE + "[ " + this.stage_function.toUpperCase() + " : " + this.id +
+                        "\t GROUP : " + group + " ] ";
                 break;
             case "FilterProcessor":
-                this.console = ConsoleColors.PURPLE_BRIGHT + "[ " + this.stage_function.toUpperCase() + " : " + this.id + "\t GROUP : " + group + " ] ";
+                this.console = ConsoleColors.PURPLE_BRIGHT + "[ " + this.stage_function.toUpperCase() + " : " +
+                        this.id + "\t GROUP : " + group + " ] ";
                 break;
         }
         if (this.simulateCrash == 0) this.simulateCrash = Integer.MAX_VALUE;
@@ -89,7 +92,7 @@ public class StatelessAtomicProcessor implements Processor {
     }
 
     /**
-     *
+     * It configures consumer and producer of this stateless processor
      */
     @Override
     public void init() {
@@ -121,7 +124,10 @@ public class StatelessAtomicProcessor implements Processor {
     }
 
     /**
-     * @param record
+     * Process the record pulled from the topic.
+     * It prduces the result of the processing function incorporated in its stageProcessor
+     * Sends the result to the next topic.
+     * @param record the consumed record
      */
     @Override
     public void process(final ConsumerRecord<String, String> record) {
@@ -150,6 +156,7 @@ public class StatelessAtomicProcessor implements Processor {
             }
         }
     }
+
 
     @Override
     public void run() {
@@ -207,7 +214,8 @@ public class StatelessAtomicProcessor implements Processor {
             e.printStackTrace();
         } catch (ProducerFencedException | OutOfOrderSequenceException | AuthorizationException e) {
             // We can't recover from these exceptions, so our only option is to close the producer and exit.
-            System.out.println(console + "We can't recover from these exceptions, so our only option is to close the producer and exit.");
+            System.out.println(console + "We can't recover from these exceptions, so our only option is to close the " +
+                    "producer and exit.");
             producer.close();
             consumer.close();
             running = false;
@@ -224,7 +232,8 @@ public class StatelessAtomicProcessor implements Processor {
     private void crash() {
 
         DB dbc = DBMaker.fileDB("crashedThreads.db").fileMmapEnableIfSupported().make();
-        ConcurrentMap<Integer, Pair<Integer, String>> mapc = dbc.hashMap("crashedThreads", Serializer.INTEGER, Serializer.JAVA).createOrOpen();
+        ConcurrentMap<Integer, Pair<Integer, String>> mapc = dbc.hashMap("crashedThreads", Serializer.INTEGER,
+                Serializer.JAVA).createOrOpen();
 
         //we need the id of the processor and the stage position
 

@@ -80,7 +80,8 @@ public class Sink implements Runnable {
         System.out.println("Sink Running");
             try {
                 while (running) {
-                    final ConsumerRecords<String, String> records = consumer.poll(Duration.of(30, ChronoUnit.SECONDS));
+                    final ConsumerRecords<String, String> records = consumer.poll(Duration.of(30,
+                            ChronoUnit.SECONDS));
                     System.out.println("Sink polled msgs");
                     for (final ConsumerRecord<String, String> record : records) {
                         String sinkRecord = "Partition: " + record.partition() + ".\t" + //

@@ -32,6 +32,11 @@ public class WindowedAggregateProcessor extends StageProcessor{
         return new WindowedAggregateProcessor(this.windowedAggregate,this.windowSize,this.slide,this.pos);
     }
 
+    /**
+     * Processes received record and maintains window data structure
+     * @param record : the <key,value> pair pulled by this processor
+     * @return the new window for the received key
+     */
     public HashMap process(final ConsumerRecord<String, String> record) {
         String key = record.key();
         String value = record.value();
@@ -48,7 +53,7 @@ public class WindowedAggregateProcessor extends StageProcessor{
                 List<String> oldValues = new ArrayList<>(winValues.subList(0, winValues.size() - 1 - windowSize
                         + slide));
                 oldSlidedValues.clear();
-                oldSlidedValues.put(key,oldValues); //save old values for possible revert
+                oldSlidedValues.put(key,oldValues); //save old values for possible revert (deprecated)
 
                 List<String> slidedWindow = new ArrayList<>(winValues.subList(winValues.size() - 1 - windowSize
                         + slide, winValues.size()));
@@ -69,6 +74,11 @@ public class WindowedAggregateProcessor extends StageProcessor{
 
     }
 
+
+    /**
+     * performs a rollback on previously saved values
+     * @deprecated
+     */
     public void rollback(){
         if (oldSlidedValues.entrySet().size() !=1){
             throw new IndexOutOfBoundsException("bug: oldSlidedValues must have a single entry ");
@@ -81,6 +91,7 @@ public class WindowedAggregateProcessor extends StageProcessor{
             windows.put(k,slidedWindow);
         });
     }
+
 
     public WindowedAggregate getWindowedAggregate() {
         return windowedAggregate;

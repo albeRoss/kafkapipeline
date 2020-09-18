@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+#deploys configuration files to the cloud
+
 array=()
 find ./server$2 -name "*processor*" -print0 >tmpfile
 while IFS=  read -r -d $'\0'; do

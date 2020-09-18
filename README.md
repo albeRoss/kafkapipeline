@@ -1,8 +1,10 @@
 # kafkapipeline
 
+### About the project
+
 Academic project for the course of Middleware Technologies at Polimi
 
-The following were the requests:
+Here is the request:
 
 
 >Goal: 
@@ -27,15 +29,41 @@ The following were the requests:
 >3. You are only allowed to use Kafka Producers and Consumers API
 
 
+#### Design choices
+
+We implemented four types of processors. 
+One of them embeds a stateful operation: a physical windowed aggregate function. 
+The other processors are
+- map
+- flatmap
+- filter
+
+and they are stateless.
+
+This project cannot be run on your local machine. 
+
+The executables for this project cannot be run without AWS EC2. 
+
 ## Getting Started
 
+- make sure you have basic Kafka and AWS [prerequisites](#prerequisites)
+- compile remote jar  `mvn clean compile assembly:single`  with [ProcessorStarter.java](/src/main/java/org/middleware/project/ProcessorStarter.java) as mainclass
 - make sure you have aws **key.pem** in the main folder of the project
+- launch EC2 machine with [AMI prerequisites](#ami-prerequisites)
+- `scp -i kafka-pipeline.pem processorStartedJarFile ubuntu@server.ip:`
+- save the template from EC2 console with a name such as *Kafkatemplate*
+- modify [launch_instances.sh](launch_instances.sh) with the name of the template
 
-### Prerequisites
+
+### Prerequisites 
 - [Kafka 2.3.1](https://kafka.apache.org/downloads)
 - [Java 8](https://www.java.com/it/download/help/index_installing.xml)
 - AWS CLI `pip install awscli` 
-- t2.2xlarge 
+
+### AMI prerequisites
+- linux 16.04.6 LTS 
+- Java JRE (version >=1.8) 
+- Kafka (version >= 2.12-2.31)
 
 ### Installing
 - choose the pipeline and change *config.properties* 
