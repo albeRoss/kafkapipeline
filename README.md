@@ -89,7 +89,7 @@ where:
 - \<positive digit> ::= "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
 
 
-##Failures in the pipeline
+## Failures in the pipeline
 
 Resilience to failures of processors has been managed in order to guarantee end-to-end exactly-one-semantic. 
 We used [MapDB](http://www.mapdb.org/) as a store for recent operations of each processor and the recovery of the failed 
