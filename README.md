@@ -47,15 +47,22 @@ The executables for this project cannot be run without AWS EC2.
 ## Getting Started
 
 - make sure you have basic Kafka and AWS [prerequisites](#prerequisites)
-- compile remote jar  `mvn clean compile assembly:single`  with [ProcessorStarter.java](/src/main/java/org/middleware/project/ProcessorStarter.java) as mainclass
-- make sure you have aws **key.pem** in the main folder of the project
-- launch EC2 machine with [AMI prerequisites](#ami-prerequisites)
-- `scp -i kafka-pipeline.pem processorStartedJarFile ubuntu@server.ip:`
+- compile the jar file `mvn clean compile assembly:single`  with 
+[ProcessorStarter.java](/src/main/java/org/middleware/project/ProcessorStarter.java) as mainclass
+- make sure you have AWS [key.pem](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-key-pairs.html) 
+in the main folder of the project
+- launch EC2 instance (recommended t2.2xlarge) 
+- register an AMI that satisfy [AMI prerequisites](#ami-prerequisites)
+- run `scp -i kafka-pipeline.pem processorStartedJarFile ubuntu@server.ip:` to upload the jar on EC2 instance
 - save the template from EC2 console with a name such as *Kafkatemplate*
 - modify [launch_instances.sh](launch_instances.sh) with the name of the template
 
 Now you can tweak the main parameters in the [configuration file](resources/config.properties) following 
 [this](#configurations) syntax
+
+Once you defined the pipeline, compile the jar file `mvn clean compile assembly:single`  with 
+[ClusterLauncher.java](src/main/java/org/middleware/project/ClusterLauncher.java) as mainclass
+
 
 
 ### Prerequisites 
@@ -70,26 +77,48 @@ Now you can tweak the main parameters in the [configuration file](resources/conf
 
 ### Configurations
 In [config.properties](resources/config.properties) you must specify 
-- pipeline.length
-- replication.factor
+- pipeline.length = \<positive_number>
+- replication.factor = \<positive_number>
 
-Then, you must add a configuration for each stage of the pipeline. This configuration is identified by the following two
+Then, you must add a configuration for each stage of the pipeline. Each stage is identified by the following two
 parameters:
-- processors.at.<num>
-- function.at.<num>
+- processors.at.\<positive_number> = \<positive_number>
+- function.at.\<positive_number> = "windowaggregate" | "flatmap" | "map" | "filter"
 
-each
+where: 
+- \<positive_number> ::= (\<positive digit>)^(+)
+- \<positive digit> ::= "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
 
-## Deployment 
+possible 
 
-- compile remote jar
-- transfer remote jar into the the instance, save ami and create the template
-we use a template with an AMI in order to run with t2.2xlarge
-create an ami with 
+
+##Failures
+
+Resilience to failures of processors has been managed in order to guarantee exactly one semantic. 
+
+
 
 ## Demo
 
+We provided a sample [source](source.txt) to roll out a demo. 
+
+First, follow [getting stated](#getting-started) steps in order to set-up deployment and local installation.
+
+Once you defined a pipeline schema run: 
+
+- `java -cp target/processor-1.0-SNAPSHOT-jar-with-dependencies.jar org.middleware.project.ProcessorStarter 
+./source.properties`
+- `java -cp target/processor-1.0-SNAPSHOT-jar-with-dependencies.jar org.middleware.project.ProcessorStarter 
+./sink.properties `
+
+
+We forced crashes on random processors in the code, in order to demonstrate **exactly-one-semantic**. 
+
+
 ## Dependecies
+
+
+
 
 ## Contributing
 
