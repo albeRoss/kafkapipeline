@@ -64,7 +64,6 @@ Once you defined the pipeline, compile the jar file `mvn clean compile assembly:
 [ClusterLauncher.java](src/main/java/org/middleware/project/ClusterLauncher.java) as mainclass
 
 
-
 ### Prerequisites 
 - [Kafka 2.3.1](https://kafka.apache.org/downloads)
 - [Java 8](https://www.java.com/it/download/help/index_installing.xml)
@@ -89,14 +88,12 @@ where:
 - \<positive_number> ::= (\<positive digit>)^(+)
 - \<positive digit> ::= "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9"
 
-possible 
 
+##Failures in the pipeline
 
-##Failures
-
-Resilience to failures of processors has been managed in order to guarantee exactly one semantic. 
-
-
+Resilience to failures of processors has been managed in order to guarantee end-to-end exactly-one-semantic. 
+We used [MapDB](http://www.mapdb.org/) as a store for recent operations of each processor and the recovery of the failed 
+processors. 
 
 ## Demo
 
@@ -111,22 +108,18 @@ Once you defined a pipeline schema run:
 - `java -cp target/processor-1.0-SNAPSHOT-jar-with-dependencies.jar org.middleware.project.ProcessorStarter 
 ./sink.properties `
 
+We forced crashes on random processors in the [code](src/main/java/org/middleware/project/TopologyBuilder.java), in order to demonstrate **exactly-one-semantic**. 
 
-We forced crashes on random processors in the code, in order to demonstrate **exactly-one-semantic**. 
-
+The pipeline will throw the processed source in [sink.txt](sink.txt)
 
 ## Dependecies
 
-
-
-
-## Contributing
+- [Kafka 2.3.1](https://kafka.apache.org/downloads)
+- [MapDB](http://www.mapdb.org/) (v3.5)
+- AWS CLI v2
 
 ## Authors
-
-## License
-
-## Acknowledgments
+[Alberto Rossettini] (https://github.com/albeRoss)
 
 
 
