@@ -119,8 +119,11 @@ The pipeline will throw the processed source in [sink.txt](sink.txt)
 - AWS CLI v2
 
 ## Authors
-[Alberto Rossettini] (https://github.com/albeRoss)
+- [Alberto Rossettini](https://github.com/albeRoss/)
 
+## Collaborators
+- [Bernardo Menicagli](https://github.com/browser-bug)
+- [Steven Salazar Molina](https://github.com/StevenSalazarM)
 
 
 
