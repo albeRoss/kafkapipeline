@@ -99,7 +99,7 @@ processors.
 
 We provided a sample [source](source.txt) to roll out a demo. 
 
-First, follow [getting stated](#getting-started) steps in order to set-up deployment and local installation.
+First, follow [getting started](#getting-started) steps in order to set-up deployment and local installation.
 
 Once you defined a pipeline schema run: 
 
