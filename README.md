@@ -60,7 +60,7 @@ in the main folder of the project
 Now you can tweak the main parameters in the [configuration file](resources/config.properties) following 
 [this](#configurations) syntax
 
-Once you defined the pipeline, compile the jar file `mvn clean compile assembly:single`  with 
+Once you've defined the pipeline, compile the jar file `mvn clean compile assembly:single`  with 
 [ClusterLauncher.java](src/main/java/org/middleware/project/ClusterLauncher.java) as mainclass
 
 
@@ -99,9 +99,9 @@ processors.
 
 We provided a sample [source](source.txt) to roll out a demo. 
 
-First, follow [getting started](#getting-started) steps in order to set-up deployment and local installation.
+First, follow [getting started](#getting-started) steps in order to set up deployment and local installation.
 
-Once you defined a pipeline schema run: 
+Once you've defined a pipeline schema run: 
 
 - `java -cp target/processor-1.0-SNAPSHOT-jar-with-dependencies.jar org.middleware.project.ProcessorStarter 
 ./source.properties`
